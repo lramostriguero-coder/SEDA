@@ -1,0 +1,45 @@
+Dependencies for Project 'TP_Simple', Target 'MiniDK2': (DO NOT MODIFY !)
+CompilerVersion: 5060750::V5.06 update 6 (build 750)::.\ARMCC
+F (..\Libraries\CM3\CoreSupport\core_cm3.c)(0x4DD1370A)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I ..\Libraries\CM3\CoreSupport -I ..\Libraries\CM3\DeviceSupport -I ..\Libraries\GLCD -I ..\Libraries\TouchPanel -I ..\USER -I ..\Libraries\LPC1700CMSIS_Firmware_Library\include-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\core_cm3.o --omf_browse .\obj\core_cm3.crf --depend .\obj\core_cm3.d)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+F (..\Libraries\CM3\DeviceSupport\startup_LPC17xx.s)(0x5996C81C)(--cpu Cortex-M3 --pd "__EVAL SETA 1" -g --apcs=interwork -I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include--pd "__UVISION_VERSION SETA 530" --pd "_RTE_ SETA 1" --pd "LPC175x_6x SETA 1" --pd "_RTE_ SETA 1"--list .\lst\startup_lpc17xx.lst --xref -o .\obj\startup_lpc17xx.o --depend .\obj\startup_lpc17xx.d)
+F (..\Libraries\CM3\DeviceSupport\system_LPC17xx.c)(0x4E6F4B50)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I ..\Libraries\CM3\CoreSupport -I ..\Libraries\CM3\DeviceSupport -I ..\Libraries\GLCD -I ..\Libraries\TouchPanel -I ..\USER -I ..\Libraries\LPC1700CMSIS_Firmware_Library\include-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\system_lpc17xx.o --omf_browse .\obj\system_lpc17xx.crf --depend .\obj\system_lpc17xx.d)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (..\Libraries\CM3\DeviceSupport\LPC17xx.h)(0x4E395E56)
+I (..\Libraries\CM3\CoreSupport\core_cm3.h)(0x4E395E56)
+I (..\Libraries\CM3\CoreSupport\core_cmInstr.h)(0x4DD1370A)
+I (..\Libraries\CM3\CoreSupport\core_cmFunc.h)(0x4DD1370A)
+I (..\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x4DD1370A)
+F (..\Libraries\GLCD\AsciiLib.c)(0x5F88E87A)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I ..\Libraries\CM3\CoreSupport -I ..\Libraries\CM3\DeviceSupport -I ..\Libraries\GLCD -I ..\Libraries\TouchPanel -I ..\USER -I ..\Libraries\LPC1700CMSIS_Firmware_Library\include-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\asciilib.o --omf_browse .\obj\asciilib.crf --depend .\obj\asciilib.d)
+I (..\Libraries\GLCD\AsciiLib.h)(0x4CEFD670)
+I (C:\Keil_v5\ARM\ARMCC\include\string.h)(0x5E53A4BC)
+F (..\Libraries\GLCD\GLCD.c)(0x6149AC65)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I ..\Libraries\CM3\CoreSupport -I ..\Libraries\CM3\DeviceSupport -I ..\Libraries\GLCD -I ..\Libraries\TouchPanel -I ..\USER -I ..\Libraries\LPC1700CMSIS_Firmware_Library\include-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\glcd.o --omf_browse .\obj\glcd.crf --depend .\obj\glcd.d)
+I (..\Libraries\CM3\DeviceSupport\LPC17xx.H)(0x4E395E56)
+I (..\Libraries\CM3\CoreSupport\core_cm3.h)(0x4E395E56)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (..\Libraries\CM3\CoreSupport\core_cmInstr.h)(0x4DD1370A)
+I (..\Libraries\CM3\CoreSupport\core_cmFunc.h)(0x4DD1370A)
+I (..\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x4DD1370A)
+I (..\Libraries\GLCD\GLCD.h)(0x5800592A)
+I (..\Libraries\GLCD\AsciiLib.h)(0x4CEFD670)
+I (C:\Keil_v5\ARM\ARMCC\include\string.h)(0x5E53A4BC)
+F (..\Libraries\TouchPanel\TouchPanel.c)(0x6ABCCDB4)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I ..\Libraries\CM3\CoreSupport -I ..\Libraries\CM3\DeviceSupport -I ..\Libraries\GLCD -I ..\Libraries\TouchPanel -I ..\USER -I ..\Libraries\LPC1700CMSIS_Firmware_Library\include-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\touchpanel.o --omf_browse .\obj\touchpanel.crf --depend .\obj\touchpanel.d)
+I (..\Libraries\GLCD\GLCD.h)(0x5800592A)
+I (..\Libraries\CM3\DeviceSupport\LPC17xx.H)(0x4E395E56)
+I (..\Libraries\CM3\CoreSupport\core_cm3.h)(0x4E395E56)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (..\Libraries\CM3\CoreSupport\core_cmInstr.h)(0x4DD1370A)
+I (..\Libraries\CM3\CoreSupport\core_cmFunc.h)(0x4DD1370A)
+I (..\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x4DD1370A)
+I (..\Libraries\TouchPanel\TouchPanel.h)(0x5F8A750B)
+F (..\USER\tp_simple.c)(0x6ABFDEC2)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I ..\Libraries\CM3\CoreSupport -I ..\Libraries\CM3\DeviceSupport -I ..\Libraries\GLCD -I ..\Libraries\TouchPanel -I ..\USER -I ..\Libraries\LPC1700CMSIS_Firmware_Library\include-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\tp_simple.o --omf_browse .\obj\tp_simple.crf --depend .\obj\tp_simple.d)
+I (..\Libraries\CM3\DeviceSupport\LPC17xx.H)(0x4E395E56)
+I (..\Libraries\CM3\CoreSupport\core_cm3.h)(0x4E395E56)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (..\Libraries\CM3\CoreSupport\core_cmInstr.h)(0x4DD1370A)
+I (..\Libraries\CM3\CoreSupport\core_cmFunc.h)(0x4DD1370A)
+I (..\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x4DD1370A)
+I (..\Libraries\GLCD\glcd.h)(0x5800592A)
+I (..\Libraries\TouchPanel\TouchPanel.h)(0x5F8A750B)
+I (C:\Keil_v5\ARM\ARMCC\include\stdio.h)(0x5E53A4BC)
+I (C:\Keil_v5\ARM\ARMCC\include\string.h)(0x5E53A4BC)

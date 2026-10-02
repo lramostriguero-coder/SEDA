@@ -1,0 +1,12 @@
+--cpu Cortex-M3
+".\obj\core_cm3.o"
+".\obj\startup_lpc17xx.o"
+".\obj\system_lpc17xx.o"
+".\obj\asciilib.o"
+".\obj\glcd.o"
+".\obj\touchpanel.o"
+".\obj\tp_simple.o"
+--strict --scatter ".\obj\TP_Simple.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\lst\TP_Simple.map" -o .\obj\TP_Simple.axf
