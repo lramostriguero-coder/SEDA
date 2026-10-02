@@ -36,7 +36,7 @@ uint8_t pressedTouchPanel = 0;
 /* Variables que contiene el dato del programa */
 int angLIDAR = 0;
 float umbDISTANCIA = 0;
-int brilloDISP = 100;
+int brilloDISP = 30;
 
 /* Variables donde almacenar cadenas de caracteres */
 char grado[25];
@@ -271,7 +271,7 @@ int main (void) {
      if (zonePressed(&zone_2))
         umbDISTANCIA = 0;
      if (zonePressed(&zone_3))
-        brilloDISP = 100;
+        brilloDISP = 30;
 				setBrillo(brilloDISP);
      if (zoneNewPressed(&zone_4)){
 			  (angLIDAR == 360) ? angLIDAR = 360 : angLIDAR ++; 
@@ -293,13 +293,13 @@ int main (void) {
 			 setBrillo(brilloDISP);	 // incrementamos el brillo de 0.01 en 0.01 
 		 }
 		 if (zoneNewPressed(&zone_9)){
-			 (brilloDISP == 10) ? brilloDISP : brilloDISP --;
+			 (brilloDISP == 30) ? brilloDISP : brilloDISP --;
 			 setBrillo(brilloDISP);	 // incrementamos el brillo de 0.01 en 0.01 
 		 }
 		 
 		 sprintf(grado, "%4d", angLIDAR);
-		 sprintf(cm,"%.1f", umbDISTANCIA);
-		 sprintf(porcentaje, "%d", brilloDISP);
+		 sprintf(cm,"%5.1f", umbDISTANCIA);
+		 sprintf(porcentaje, "%3d", brilloDISP);
 		 
      GUI_Text(zone_1.x + zone_1.size_x/2 - (strlen(grado)/2)*8, zone_1.y + zone_1.size_y/2 - 8,
              (uint8_t*) grado, White, Black);	
