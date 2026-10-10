@@ -115,7 +115,7 @@
           <SimDlgDllArguments>-pLPC1768</SimDlgDllArguments>
           <TargetDllName>SARMCM3.DLL</TargetDllName>
           <TargetDllArguments> -MPU</TargetDllArguments>
-          <TargetDlgDll>TCM.DLL</TargetDlgDll>
+          <TargetDlgDll>TARMP1.DLL</TargetDlgDll>
           <TargetDlgDllArguments>-pLPC1768</TargetDlgDllArguments>
         </DllOption>
         <DebugOption>
