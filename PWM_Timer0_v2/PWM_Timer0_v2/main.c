@@ -59,7 +59,13 @@ void set_servo_180 (uint8_t servo, uint8_t grados){
 	if (servo > 1) return;
 	if (grados > 180) return;	
 	
-	cuentas[servo] = F_pclk*Tmin + F_pclk*(Tmax-Tmin/180)*grados;
+	cuentas[servo] = F_pclk*Tmin + F_pclk*(Tmax-Tmin)*grados/180;
+}
+
+void delay_ms(int ms) {
+   int i,j;
+   for (j=0; j < ms; j++ )
+      for (i=0; i < 17000; i++);
 }
 
 
@@ -68,13 +74,22 @@ int main(void)
 	LPC_PINCON->PINSEL7|=(2<<18); // P3.25 es MAT0.0	
 	LPC_PINCON->PINSEL7|=(2<<20); // P3.26 es MAT0.1	
 
-	set_servo_180(0, 90);
-	set_servo_180(1, 90);
+	set_servo_180(0, 0);
+	set_servo_180(1, 0);
 	
 	init_TIMER0();
 	NVIC_EnableIRQ(TIMER0_IRQn);
 	
-
-
-	while(1);
+	while(1)
+	{
+		set_servo_180(0, 0);		
+		set_servo_180(1, 180);		
+		delay_ms(1000); 		
+		set_servo_180(0, 90);		
+		set_servo_180(1, 90);		
+		delay_ms(1000); 		
+		set_servo_180(0, 180);		
+		set_servo_180(1, 0);		
+		delay_ms(1000);
+	}
 }
