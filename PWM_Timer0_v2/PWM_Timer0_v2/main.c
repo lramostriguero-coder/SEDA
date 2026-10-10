@@ -54,12 +54,32 @@ void TIMER0_IRQHandler(void)
 }
 
 
-void set_servo_180 (uint8_t servo, uint8_t grados){
+void set_indicador_360 (uint16_t grados){
 	
-	if (servo > 1) return;
-	if (grados > 180) return;	
+	if (grados == 0)||(grados > 360) {return;}
 	
-	cuentas[servo] = F_pclk*Tmin + F_pclk*(Tmax-Tmin)*grados/180;
+	uint16_t ang0, g0, g1;
+	for(ang0 = 0, ang0 <= 360, ang0 += grados)
+	{
+		if (ang0 <= 180)
+		{
+			g0 = ang0;
+			g1 = 0;
+		}
+		if (ang0 > 180)
+		{
+			g0 = 0;
+			g1 = ang0;
+		}
+		cuentas[0] = F_pclk*Tmin + F_pclk*(Tmax-Tmin)*g0/180;
+	  cuentas[1] = F_pclk*Tmin + F_pclk*(Tmax-Tmin)*g1/180;
+		delay(200);
+	}
+	delay(1000);
+	
+	cuentas[0] = F_pclk*Tmin;           // Vuelta a reposo (0 grados)
+	cuentas[1] = F_pclk*Tmin;
+	delay_ms(1000);                     // Tiempo para llegar a reposo
 }
 
 void delay_ms(int ms) {
@@ -73,23 +93,13 @@ int main(void)
 {
 	LPC_PINCON->PINSEL7|=(2<<18); // P3.25 es MAT0.0	
 	LPC_PINCON->PINSEL7|=(2<<20); // P3.26 es MAT0.1	
-
-	set_servo_180(0, 0);
-	set_servo_180(1, 0);
-	
+	cuentas[0]= F_pclk*Tmin;
+	cuentas[1]= F_pclk*Tmin;
 	init_TIMER0();
 	NVIC_EnableIRQ(TIMER0_IRQn);
 	
 	while(1)
 	{
-		set_servo_180(0, 0);		
-		set_servo_180(1, 180);		
-		delay_ms(1000); 		
-		set_servo_180(0, 90);		
-		set_servo_180(1, 90);		
-		delay_ms(1000); 		
-		set_servo_180(0, 180);		
-		set_servo_180(1, 0);		
-		delay_ms(1000);
+		set_indicador_360(20);
 	}
 }
