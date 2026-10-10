@@ -1,0 +1,17 @@
+Dependencies for Project 'PWM_Timer0', Target 'Target 1': (DO NOT MODIFY !)
+CompilerVersion: 5060750::V5.06 update 6 (build 750)::.\ARMCC
+F (.\main.c)(0x6AC9F605)(--c99 -c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork --split_sections -I .\Libraries\CM3\CoreSupport -I .\Libraries\CM3\DeviceSupport-I.\RTE\_Target_1-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-IC:\Keil_v5\ARM\CMSIS\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\objects\main.o --omf_browse .\objects\main.crf --depend .\objects\main.d)
+I (.\Libraries\CM3\DeviceSupport\LPC17xx.H)(0x6AC66037)
+I (.\Libraries\CM3\CoreSupport\core_cm3.h)(0x6AC66036)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (.\Libraries\CM3\CoreSupport\core_cmInstr.h)(0x6AC66036)
+I (.\Libraries\CM3\CoreSupport\core_cmFunc.h)(0x6AC66037)
+I (.\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x6AC66037)
+F (RTE\Device\LPC1768\startup_LPC17xx.s)(0x6AC66038)(--cpu Cortex-M3 --pd "__EVAL SETA 1" -g --apcs=interwork -I.\RTE\_Target_1-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-IC:\Keil_v5\ARM\CMSIS\Include--pd "__UVISION_VERSION SETA 530" --pd "_RTE_ SETA 1" --pd "LPC175x_6x SETA 1" --pd "_RTE_ SETA 1"--list .\listings\startup_lpc17xx.lst --xref -o .\objects\startup_lpc17xx.o --depend .\objects\startup_lpc17xx.d)
+F (RTE\Device\LPC1768\system_LPC17xx.c)(0x6AC66038)(--c99 -c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork --split_sections -I .\Libraries\CM3\CoreSupport -I .\Libraries\CM3\DeviceSupport-I.\RTE\_Target_1-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-IC:\Keil_v5\ARM\CMSIS\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\objects\system_lpc17xx.o --omf_browse .\objects\system_lpc17xx.crf --depend .\objects\system_lpc17xx.d)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (.\Libraries\CM3\DeviceSupport\LPC17xx.h)(0x6AC66037)
+I (.\Libraries\CM3\CoreSupport\core_cm3.h)(0x6AC66036)
+I (.\Libraries\CM3\CoreSupport\core_cmInstr.h)(0x6AC66036)
+I (.\Libraries\CM3\CoreSupport\core_cmFunc.h)(0x6AC66037)
+I (.\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x6AC66037)
