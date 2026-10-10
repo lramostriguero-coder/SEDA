@@ -1,0 +1,21 @@
+Dependencies for Project 'timers servo', Target 'MiniDK2': (DO NOT MODIFY !)
+CompilerVersion: 5060750::V5.06 update 6 (build 750)::.\ARMCC
+F (..\Libraries\CM3\DeviceSupport\startup_LPC17xx.s)(0x6AC6602A)(--cpu Cortex-M3 --pd "__EVAL SETA 1" -g --apcs=interwork -I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include--pd "__UVISION_VERSION SETA 530" --pd "_RTE_ SETA 1" --pd "LPC175x_6x SETA 1" --pd "_RTE_ SETA 1"--list .\lst\startup_lpc17xx.lst --xref -o .\obj\startup_lpc17xx.o --depend .\obj\startup_lpc17xx.d)
+F (..\Libraries\CM3\DeviceSupport\system_LPC17xx.c)(0x6AC6602A)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I .\Libraries\CM3\CoreSupport -I .\Libraries\CM3\DeviceSupport-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\system_lpc17xx.o --omf_browse .\obj\system_lpc17xx.crf --depend .\obj\system_lpc17xx.d)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (..\Libraries\CM3\DeviceSupport\LPC17xx.h)(0x6AC6602A)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\core_cm3.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_version.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_compiler.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_armcc.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\mpu_armv7.h)(0x626F9F3E)
+I (..\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x6AC6602A)
+F (..\USER\main.c)(0x6AC7A091)(-c --cpu Cortex-M3 -D__EVAL -g -O0 --apcs=interwork -I .\Libraries\CM3\CoreSupport -I .\Libraries\CM3\DeviceSupport-I.\RTE\_MiniDK2-IC:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-IC:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include-D__UVISION_VERSION="530" -D_RTE_ -DLPC175x_6x -D_RTE_-o .\obj\main.o --omf_browse .\obj\main.crf --depend .\obj\main.d)
+I (C:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include\LPC17xx.H)(0x65C63E3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\core_cm3.h)(0x626F9F3E)
+I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x5E53A4BC)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_version.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_compiler.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_armcc.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\mpu_armv7.h)(0x626F9F3E)
+I (C:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include\system_LPC17xx.h)(0x65C63E3E)

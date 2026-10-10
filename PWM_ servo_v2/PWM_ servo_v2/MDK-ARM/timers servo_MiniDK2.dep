@@ -1,0 +1,16 @@
+Dependencies for Project 'timers servo', Target 'MiniDK2': (DO NOT MODIFY !)
+F (..\Libraries\CM3\DeviceSupport\startup_LPC17xx.s)(0x598F8324)(--cpu Cortex-M3 -g --apcs=interwork -I C:\Keil472a\ARM\RV31\INC-I C:\Keil472a\ARM\CMSIS\Include-I C:\Keil472a\ARM\Inc\NXP\LPC17xx--list .\lst\startup_lpc17xx.lst --xref -o .\obj\startup_lpc17xx.o --depend .\obj\startup_lpc17xx.d)
+F (..\Libraries\CM3\DeviceSupport\system_LPC17xx.c)(0x4E6F4B4E)(-c --cpu Cortex-M3 -g -O0 --apcs=interwork -I.\Libraries\CM3\CoreSupport -I.\Libraries\CM3\DeviceSupport-I C:\Keil472a\ARM\RV31\INC-I C:\Keil472a\ARM\CMSIS\Include-I C:\Keil472a\ARM\Inc\NXP\LPC17xx-o .\obj\system_lpc17xx.o --omf_browse .\obj\system_lpc17xx.crf --depend .\obj\system_lpc17xx.d)
+I (C:\Keil472a\ARM\ARMCC\include\stdint.h)(0x51C819B4)
+I (C:\SEDA\PWM_ servo_v2\Libraries\CM3\DeviceSupport\LPC17xx.h)(0x4E395E56)
+I (C:\Keil472a\ARM\CMSIS\Include\core_cm3.h)(0x51C817BA)
+I (C:\Keil472a\ARM\CMSIS\Include\core_cmInstr.h)(0x51C817BA)
+I (C:\Keil472a\ARM\CMSIS\Include\core_cmFunc.h)(0x51C817BA)
+I (C:\SEDA\PWM_ servo_v2\Libraries\CM3\DeviceSupport\system_LPC17xx.h)(0x4DD1370A)
+F (..\USER\main.c)(0x5F828EDD)(-c --cpu Cortex-M3 -g -O0 --apcs=interwork -I.\Libraries\CM3\CoreSupport -I.\Libraries\CM3\DeviceSupport-I C:\Keil472a\ARM\RV31\INC-I C:\Keil472a\ARM\CMSIS\Include-I C:\Keil472a\ARM\Inc\NXP\LPC17xx-o .\obj\main.o --omf_browse .\obj\main.crf --depend .\obj\main.d)
+I (C:\Keil472a\ARM\Inc\NXP\LPC17xx\LPC17xx.H)(0x51C81338)
+I (C:\Keil472a\ARM\CMSIS\Include\core_cm3.h)(0x51C817BA)
+I (C:\Keil472a\ARM\ARMCC\include\stdint.h)(0x51C819B4)
+I (C:\Keil472a\ARM\CMSIS\Include\core_cmInstr.h)(0x51C817BA)
+I (C:\Keil472a\ARM\CMSIS\Include\core_cmFunc.h)(0x51C817BA)
+I (C:\Keil472a\ARM\Inc\NXP\LPC17xx\system_LPC17xx.h)(0x51C81338)
