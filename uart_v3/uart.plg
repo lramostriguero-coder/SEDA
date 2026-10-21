@@ -1,0 +1,28 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Project:</h2>
+C:\Users\Alumno\Desktop\Practica 8\uart\uart.uvproj
+Project File Date:  12/17/2020
+
+<h2>Output:</h2>
+Build target 'LPC1768_SIM'
+compiling main.c...
+main.c(46): warning:  #223-D: function "strcmp" declared implicitly
+linking...
+Program Size: Code=2588 RO-data=332 RW-data=24 ZI-data=672  
+FromELF: creating hex file...
+".\uart.axf" - 0 Errors, 1 Warning(s).
+Build target 'LPC1768_SIM'
+compiling main.c...
+main.c(49): warning:  #223-D: function "strcmp" declared implicitly
+linking...
+Program Size: Code=2588 RO-data=332 RW-data=24 ZI-data=672  
+FromELF: creating hex file...
+".\uart.axf" - 0 Errors, 1 Warning(s).
+Build target 'LPC1768_SIM'
+linking...
+Program Size: Code=2588 RO-data=332 RW-data=24 ZI-data=672  
+FromELF: creating hex file...
+".\uart.axf" - 0 Errors, 0 Warning(s).
