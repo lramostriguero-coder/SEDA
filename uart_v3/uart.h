@@ -22,7 +22,7 @@
 #define RDA_INTERRUPT                   (2 << 1)
 #define CTI_INTERRUPT                   (6 << 1)
 
-extern char buffer[40];	// Buffer de recepción
+extern char buffer[100];	// Buffer de recepción
 extern char *ptr_rx;	// puntero de recepción
 extern char rx_completa;// Flag de recepción de cadena completa que se activa al recibir CR(0x0D)
 extern char *ptr_tx;			// puntero de transmisión

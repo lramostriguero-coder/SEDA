@@ -11,19 +11,20 @@ Mod: 17-Dic-2020  J.P.M.
 #include <stdio.h>
 #include <string.h>
 
-char buffer[40];			// Buffer de recepción de 40 caracteres
-char buffer_tx[40];		// Buffer de recepción de 40 caracteres
+char buffer[100];			// Buffer de recepción de 40 caracteres
+char buffer_tx[100];		// Buffer de recepción de 40 caracteres
 char *ptr_rx;					// puntero de recepción
 char rx_completa;			// Flag de recepción de cadena que se activa a "1" al recibir la tecla return CR(ASCII=13)
 char *ptr_tx;					// puntero de transmisión
 char tx_completa;			// Flag de transmisión de cadena que se activa al transmitir el caracter null (fin de cadena)
-int i = 0;
 
+
+/* Variables */
 int angulo = 90;
 float umbralDistancia = 15.5;
 int brillo = 50;
 
-
+/* Estados */
 typedef enum {
 	enviando_msj_inicial, 
 	msj_inicial_enviado,
@@ -36,15 +37,15 @@ typedef enum {
 	notificando_finalizacion, 
 	fin} t_estado;
 
-t_estado estado;
+t_estado estado; // Estado inicial
 	
-	
+// Funcion maquina de estados	
 void maquina_de_estados (void){
 	
 		 switch(estado){
 		 case enviando_msj_inicial:
 				if (tx_completa)
-					estado = msj_inicial_enviado;
+					estado = msj_inicial_enviado;				
 				break;
 				
 		 case msj_inicial_enviado:
@@ -54,7 +55,7 @@ void maquina_de_estados (void){
 		 
 		 case enviando_mensaje_ordenes:
 				if (tx_completa)
-					estado = enviado_mensaje_ordenes;
+					estado = enviado_mensaje_ordenes;			
 				break;
 				
 		 case enviado_mensaje_ordenes:
@@ -66,22 +67,22 @@ void maquina_de_estados (void){
 					rx_completa = 0;
 					if (strcmp(buffer, "enciende\r") == 0)
 						LPC_GPIO3->FIOPIN&=~(1<<26);
+					
           else if (strcmp (buffer, "apaga\r") == 0)  
 						LPC_GPIO3->FIOPIN|=(1<<26);
 					
-					else if (strcmp(buffer, "GetMedida\r")){
-						sprintf(buffer_tx, "Angulo: %d grados, Umbral de Distancia: %.1f cm, Brillo: %d %%", angulo, umbralDistancia, brillo);
-						tx_cadena_UART0(buffer_tx);
+					else if ((strcmp(buffer, "GetMedida\r")) == 0){
+						// Guardar en buffer Tx el valor de las variables
+						sprintf(buffer_tx, "Angulo: %d grados, Umbral de Distancia: %.1f cm, Brillo: %d %%", angulo, umbralDistancia, brillo);	
+						tx_cadena_UART0(buffer_tx);																								// Transmitir buffer
 						estado = notificando_medida;
 					}
-					else if (strcmp(buffer, "SetUmbralDistancia\r")){
-            if (sscanf(buffer, "SetUmbralDistancia %f", &umbralDistancia) == 1) { 
-              sprintf(buffer_tx, "Umbral de distancia = %.1f cm\n\r", umbralDistancia);
-              tx_cadena_UART0(buffer_tx);
-              estado = notificando_medida;
-						}
+					else if (sscanf(buffer, "SetUmbralDistancia %f", &umbralDistancia) == 1){		// Esperar a introducir valor Distancia y guardar en umbralDistancia
+						sprintf(buffer_tx, "Umbral de distancia = %.1f cm\n\r", umbralDistancia);	// Guardar valor de umbralDistnacia en buffer de Tx
+						tx_cadena_UART0(buffer_tx);																								// Transmitir buffer
+						estado = notificando_medida;
 					}
-          else if (strcmp (buffer, "fin\r") == 0){		
+          else if (strcmp (buffer, "fin\r") == 0){								
 						tx_cadena_UART0("Fin del programa.\r");
 						estado = notificando_finalizacion;
 					}
@@ -117,15 +118,14 @@ void maquina_de_estados (void){
 int main(void) {
    LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
    LPC_GPIO3->FIOCLR |= (1<<26);	// P3.26 apagado 
-   ptr_rx=buffer;	                // inicializa el puntero de recepción al comienzo del buffer
-   uart0_init(115200);					 	// configura la UART0 a 115200 baudios, 8 bits, 1 bit stop
+   ptr_rx=buffer;	                // Inicializa el puntero de recepción al comienzo del buffer
+   uart0_init(115200);					 	// Configura la UART0 a 115200 baudios, 8 bits, 1 bit stop
               
    tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
-	 estado = enviando_msj_inicial;
+	 estado = enviando_msj_inicial;	// Estado inicial
 
    while(1){
 			maquina_de_estados();
-			i++;
 	 }
 }
 
