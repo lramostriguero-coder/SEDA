@@ -154,7 +154,7 @@ void maquina_estados_lidar(uint8_t dato)
 		else
 			estado_lidar = esperando_cab1;	// Cabecera erronea, volver a empezar
 		break;
-
+	
 	case recibiendo_datos:
 		trama_lidar[indice_trama++] = dato;
 		if (indice_trama == TAM_TRAMA){		// Trama completa (36 bytes)
@@ -162,14 +162,15 @@ void maquina_estados_lidar(uint8_t dato)
 			if (Camsense_Checksum(trama_lidar) == (trama_lidar[34] | (trama_lidar[35] << 8))){
 				tramas_ok++;
 				// Paso 6: aquí se extraerán las 8 muestras de la trama
+				extraer_muestras();
 			}
 			else
 				tramas_error++;
 			estado_lidar = esperando_cab1;		// Siguiente trama
 		}
-		extraer_muestras();
 		break;
 	}
+	
 }	
 	
 // Funcion maquina de estados Terminal
