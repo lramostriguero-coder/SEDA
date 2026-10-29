@@ -168,6 +168,7 @@ void UART3_IRQHandler(void) {
 	
 	case 0x04:								 /* RBR, Receiver Buffer Ready */
 			dato_rx3 = LPC_UART3->RBR;
+			maquina_estados_lidar(dato_rx3);
       break;
 	}
 }
@@ -259,7 +260,6 @@ void uart3_init(int baudrate) {
 
     uart3_set_baudrate(baudrate);// Set the baud rate
         
-    LPC_UART3->IER = RBR_IRQ_ENABLE;// Enable UART TX and RX interrupt (for LPC17xx UART)   
+    LPC_UART3->IER = RBR_IRQ_ENABLE;// Enable UART RX interrupt (for LPC17xx UART)   
     NVIC_EnableIRQ(UART3_IRQn);// Enable the UART interrupt (for Cortex-CM3 NVIC)
-   
 }

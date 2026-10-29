@@ -71,6 +71,7 @@ uint8_t dato_rx3;
 uint8_t trama_lidar[TAM_TRAMA];
 uint32_t tramas_ok = 0;
 uint32_t tramas_error = 0;
+uint8_t indice_trama = 0;
 
 /* Estados para recepcion tramas LIDAR */
 typedef enum{
@@ -85,8 +86,7 @@ t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial lidar
 
 // Maquina de estados Rx LIDAR
 void maquina_estados_lidar(uint8_t dato)
-{	uint8_t indice_trama = 0;
-	
+{
 	switch(estado_lidar){
 	case esperando_cab1:
 		if (dato == 0x55){

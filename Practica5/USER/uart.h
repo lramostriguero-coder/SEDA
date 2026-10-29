@@ -36,11 +36,11 @@ extern void tx_cadena_UART0(char *ptr);
 
 extern uint8_t dato_rx3;
 extern void uart3_init(int baudrate);
-extern void tx_cadena_UART3(char *ptr);
 
 extern uint8_t trama_lidar[TAM_TRAMA];
 extern uint32_t tramas_ok;
 extern uint32_t tramas_error;
+extern void maquina_estados_lidar(uint8_t dato);
 
 extern uint16_t Camsense_Checksum(uint8_t *data);
 
