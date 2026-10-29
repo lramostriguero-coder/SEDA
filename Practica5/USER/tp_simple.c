@@ -9,6 +9,23 @@
 #define Fpclk 25e6	// Fcpu/4 (defecto después del reset)
 #define Fpwm 2e3		// Frecuencia de la señal PWM (2kHz)
 
+#define ZONAS 2
+
+struct t_zona
+{
+	uint16_t inicial;
+	uint16_t final;
+};
+
+struct t_zona zonas_validas[ZONAS] = {0, 45}, {180, 270};
+
+uint16_t zona_valida (int angulo){
+	int z;
+	for ( z= 0; z < ZONAS; z++){
+		 if((angulo >= zonas_validas[z].inicial)&&(angulo <= zonas_validas[z].final)){
+	}
+}
+
 /* Estructura que define una zona de la pantalla */
 struct t_screenZone
 {
@@ -36,7 +53,7 @@ uint8_t pressedTouchPanel = 0;
 
 /* Variables que contiene el dato del programa */
 int angLIDAR = 0;
-float umbDISTANCIA = 0;
+float umbDISTANCIA = 30;
 int brilloDISP = 20;
 
 /* Variables donde almacenar cadenas de caracteres */
@@ -73,8 +90,8 @@ uint8_t trama_lidar[TAM_TRAMA];
 uint32_t tramas_ok = 0;
 uint32_t tramas_error = 0;
 uint8_t indice_trama = 0;
-uint16_t lidar_scan_360[360];
-
+uint16_t lidar_scan_360[360];	
+	
 /* Estados para recepcion tramas LIDAR */
 typedef enum{
 	esperando_cab1,
@@ -455,6 +472,7 @@ void setBrillo(float brilloDISP) {
 int main (void) 
 { 
 	int i;
+	uint16_t color;
 	configPWM();
   LCD_Initializtion();
   LCD_Clear(Black);	
@@ -524,16 +542,14 @@ int main (void)
 		 
 		LCD_Clear(Black);
 		for (i=0; i < 360; i++) {
-			// añadido
-			if (i < 180)
-				lidar_scan_360[i] += 1;
+			if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
+				color  = Red;
 			else 
-				lidar_scan_360[i] += 0.5;
-			// fin añadido
+				color = White;
 			
 			LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
 							     100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), 
-									 White); 
+									 color); 
 		} 	 
 	}   
 }
