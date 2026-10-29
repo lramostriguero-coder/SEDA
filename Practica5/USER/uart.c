@@ -146,7 +146,6 @@ uint16_t Camsense_Checksum( uint8_t *data){
 	uint16_t checksum;
 	uint16_t word;
 	
-	
 	// Procesar los primeros 34 bytes 
 	// como 17 palabras de 16 bits
 	for(i = 0; i <17; i++){
@@ -158,7 +157,8 @@ uint16_t Camsense_Checksum( uint8_t *data){
 	
 	// Plegado a 15 bits
 	checksum = 
-					((acc & 0x7FFF)+(acc <<15)) & 0x7FFF;
+				((acc & 0x7FFF)+(acc >> 15)) & 0x7FFF;
+	
 	return checksum;
 }
 

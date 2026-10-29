@@ -72,6 +72,7 @@ uint8_t trama_lidar[TAM_TRAMA];
 uint32_t tramas_ok = 0;
 uint32_t tramas_error = 0;
 uint8_t indice_trama = 0;
+uint16_t lidar_scan_360[360];
 
 /* Estados para recepcion tramas LIDAR */
 typedef enum{
@@ -84,6 +85,37 @@ typedef enum{
 
 t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial lidar
 
+	
+/* Paso 6: extrae las 8 muestras de una trama con CRC correcto y las guarda en lidar_scan_360 */
+void extraer_muestras(void)
+{
+	float ang_ini, ang_fin, inc_ang, ang_i;
+	uint16_t distancia;
+	int i, indice;
+	
+	// 6.1 Ángulo inicial (bytes 6-7) y final (bytes 32-33). Primero byte bajo, luego alto. Vienen x64
+	ang_ini = ((trama_lidar[7] << 8) | trama_lidar[6]) / 64.0f;
+	ang_fin = ((trama_lidar[33] << 8) | trama_lidar[32]) / 64.0f;
+ 
+	// 6.2 Incremento de ángulo entre muestras
+	if (ang_fin < ang_ini)			// Paso por 360º: corregir para que el incremento no salga negativo
+		ang_fin = ang_fin + 360;
+	inc_ang = (ang_fin - ang_ini) / 8;
+ 
+	// 6.3 Ángulo y distancia de cada una de las 8 muestras
+
+	for (i = 0; i < 8; i++){
+		ang_i = ang_ini + i * inc_ang;
+		indice = (int)(ang_i + 0.5f) % 360;		// round(ang_i) mod 360
+		// Distancia: byte 8+3i (bajo) y 9+3i (alto). El byte 10+3i es la calidad (no se usa)
+		distancia = (trama_lidar[9 + 3*i] << 8) | trama_lidar[8 + 3*i];
+		if (distancia & 0x8000)		// 0x8000: el LiDAR no ha medido nada en ese ángulo
+			distancia = 0;
+		lidar_scan_360[indice] = distancia;
+	}
+}
+ 
+	
 // Maquina de estados Rx LIDAR
 void maquina_estados_lidar(uint8_t dato)
 {
@@ -135,6 +167,7 @@ void maquina_estados_lidar(uint8_t dato)
 				tramas_error++;
 			estado_lidar = esperando_cab1;		// Siguiente trama
 		}
+		extraer_muestras();
 		break;
 	}
 }	
