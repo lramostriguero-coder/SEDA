@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "uart.h"
+#include <math.h>
 
 #define Fpclk 25e6	// Fcpu/4 (defecto después del reset)
 #define Fpwm 2e3		// Frecuencia de la señal PWM (2kHz)
@@ -85,7 +86,6 @@ typedef enum{
 
 t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial lidar
 
-	
 /* Paso 6: extrae las 8 muestras de una trama con CRC correcto y las guarda en lidar_scan_360 */
 void extraer_muestras(void)
 {
@@ -107,6 +107,7 @@ void extraer_muestras(void)
 	for (i = 0; i < 8; i++){
 		ang_i = ang_ini + i * inc_ang;
 		indice = (int)(ang_i + 0.5f) % 360;		// round(ang_i) mod 360
+		
 		// Distancia: byte 8+3i (bajo) y 9+3i (alto). El byte 10+3i es la calidad (no se usa)
 		distancia = (trama_lidar[9 + 3*i] << 8) | trama_lidar[8 + 3*i];
 		if (distancia & 0x8000)		// 0x8000: el LiDAR no ha medido nada en ese ángulo
@@ -451,14 +452,16 @@ void setBrillo(float brilloDISP) {
    LPC_PWM1->LER|=(1<<6)|(1<<0);
 }
 
-int main (void) { 
+int main (void) 
+{ 
+	int i;
 	configPWM();
   LCD_Initializtion();
   LCD_Clear(Black);	
   TP_Init(); 
   //TouchPanel_Calibrate(); /* Configurar "matrix" y comentar para eliminar la calibración */
   
-  screenMain();
+  // screenMain();
 	
 	// UART0,3 (Comandos por Terminal y Rx datos LIDAR)
 	LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
@@ -471,6 +474,7 @@ int main (void) {
   tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
   estado = enviando_msj_inicial;
 	// Fin inicialicacion UART0,3
+	
 	
 	while(1){
 		 maquina_de_estados();
@@ -506,7 +510,7 @@ int main (void) {
 			 else { 
 					brilloDISP = brilloDISP - 1;}
 		 }
-		 
+		 /*
 		 sprintf(grado, "%4d", angLIDAR);
 		 sprintf(cm,"%5.1f", umbDISTANCIA);
 		 sprintf(porcentaje, "%3d", brilloDISP);
@@ -516,8 +520,13 @@ int main (void) {
 		 GUI_Text(zone_2.x + zone_2.size_x/2 - (strlen(cm)/2)*8, zone_2.y + zone_2.size_y/2 - 8,
              (uint8_t*) cm, White, Black);	
 		 GUI_Text(zone_3.x + zone_3.size_x/2 - (strlen(porcentaje)/2)*8, zone_3.y + zone_3.size_y/2 - 8,
-             (uint8_t*) porcentaje, White, Black);	
-  } 	 
-     
+             (uint8_t*) porcentaje, White, Black);	*/
+		 
+		 LCD_Clear(Black);
+		 for (i=0; i < 360; i++) {
+				LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
+								     100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), White); 
+		} 	 
+	}   
 }
 
