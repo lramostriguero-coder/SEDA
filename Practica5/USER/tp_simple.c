@@ -65,8 +65,81 @@ typedef enum {
 	fin} t_estado;
 
 t_estado estado;	// Variable estado
+
+/* Variables para Rx datos LIDAR */
+uint8_t dato_rx3;
+uint8_t trama_lidar[TAM_TRAMA];
+uint32_t tramas_ok = 0;
+uint32_t tramas_error = 0;
+
+/* Estados para recepcion tramas LIDAR */
+typedef enum{
+	esperando_cab1,
+	esperando_cab2,
+	esperando_cab3,
+	esperando_cab4,
+	recibiendo_datos
+} t_estado_LIDAR;
+
+t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial lidar
+
+// Maquina de estados Rx LIDAR
+void maquina_estados_lidar(uint8_t dato)
+{	uint8_t indice_trama = 0;
 	
-// Funcion maquina de estados
+	switch(estado_lidar){
+	case esperando_cab1:
+		if (dato == 0x55){
+			trama_lidar[0] = dato;
+			estado_lidar = esperando_cab2;
+		}
+		break;
+
+	case esperando_cab2:
+		if (dato == 0xAA){
+			trama_lidar[1] = dato;
+			estado_lidar = esperando_cab3;
+		}
+		else
+			estado_lidar = esperando_cab1;	// Cabecera erronea, volver a empezar
+		break;
+
+	case esperando_cab3:
+		if (dato == 0x03){
+			trama_lidar[2] = dato;
+			estado_lidar = esperando_cab4;
+		}
+		else
+			estado_lidar = esperando_cab1; 	// Cabecera erronea, volver a empezar
+		break;
+
+	case esperando_cab4:								
+		if (dato == 0x08){
+			trama_lidar[3] = dato;
+			indice_trama = 4;								// Los datos empiezan en la posición 4
+			estado_lidar = recibiendo_datos;
+		}
+		else
+			estado_lidar = esperando_cab1;	// Cabecera erronea, volver a empezar
+		break;
+
+	case recibiendo_datos:
+		trama_lidar[indice_trama++] = dato;
+		if (indice_trama == TAM_TRAMA){		// Trama completa (36 bytes)
+			// CRC recibido: byte 34 (parte baja) y byte 35 (parte alta)
+			if (Camsense_Checksum(trama_lidar) == (trama_lidar[34] | (trama_lidar[35] << 8))){
+				tramas_ok++;
+				// Paso 6: aquí se extraerán las 8 muestras de la trama
+			}
+			else
+				tramas_error++;
+			estado_lidar = esperando_cab1;		// Siguiente trama
+		}
+		break;
+	}
+}	
+	
+// Funcion maquina de estados Terminal
 void maquina_de_estados (void){
 	
 		 switch(estado){
@@ -353,15 +426,19 @@ int main (void) {
   
   screenMain();
 	
-  ptr_rx=buffer;	    		 // Inicializa el puntero de recepción al comienzo del buffer
+	// UART0,3 (Comandos por Terminal y Rx datos LIDAR)
+	LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
+  LPC_GPIO3->FIOCLR |= (1<<26);	// P3.26 apagado 
+
+  ptr_rx=buffer;	    		  // Inicializa el puntero de recepción al comienzo del buffer
   uart0_init(115200); 		 	// Configura la UART0 a 115200 baudios, 8 bits, 1 bit stop
+	uart3_init(115200);				// Configura la UART3 a 115200 baudios, 8 bits, 1 bit stop
 	
   tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
-  estado = enviando_msj_inicial;	
+  estado = enviando_msj_inicial;
+	// Fin inicialicacion UART0,3
 	
 	while(1){
-		 LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
-		 LPC_GPIO3->FIOCLR |= (1<<26);	// P3.26 apagado 
 		 maquina_de_estados();
      checkTouchPanel();
 		 setBrillo(brilloDISP);

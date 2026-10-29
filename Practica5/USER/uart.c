@@ -134,3 +134,132 @@ void uart0_init(int baudrate) {
    
 }
 
+
+
+/*
+ * UART3 interrupt handler
+ */
+
+uint16_t Camsense_Checksum( uint8_t *data){
+	uint32_t acc = 0;
+	int i;
+	uint16_t checksum;
+	uint16_t word;
+	
+	
+	// Procesar los primeros 34 bytes 
+	// como 17 palabras de 16 bits
+	for(i = 0; i <17; i++){
+		word =
+				(uint16_t)data[2*i] | 
+				((uint16_t)data[2*i + 1] << 8);
+		acc= (acc <<1) + word;
+	}
+	
+	// Plegado a 15 bits
+	checksum = 
+					((acc & 0x7FFF)+(acc <<15)) & 0x7FFF;
+	return checksum;
+}
+
+void UART3_IRQHandler(void) {
+	
+  switch(LPC_UART3->IIR&0x0E) {
+	
+	case 0x04:								 /* RBR, Receiver Buffer Ready */
+			dato_rx3 = LPC_UART3->RBR;
+      break;
+	}
+}
+
+
+
+static int uart3_set_baudrate(unsigned int baudrate) {
+    int errorStatus = -1; //< Failure
+
+   // UART clock (FCCO / PCLK_UART3)
+   // unsigned int uClk = SystemCoreClock / 4;
+    unsigned int uClk =SystemCoreClock/4;
+    unsigned int calcBaudrate = 0;
+    unsigned int temp = 0;
+
+    unsigned int mulFracDiv, dividerAddFracDiv;
+    unsigned int divider = 0;
+    unsigned int mulFracDivOptimal = 1;
+    unsigned int dividerAddOptimal = 0;
+    unsigned int dividerOptimal = 0;
+
+    unsigned int relativeError = 0;
+    unsigned int relativeOptimalError = 100000;
+
+    uClk = uClk >> 4; /* div by 16 */
+
+    /*
+     *  The formula is :
+     * BaudRate= uClk * (mulFracDiv/(mulFracDiv+dividerAddFracDiv) / (16 * DLL)
+     *
+     * The value of mulFracDiv and dividerAddFracDiv should comply to the following expressions:
+     * 0 < mulFracDiv <= 15, 0 <= dividerAddFracDiv <= 15
+     */
+    for (mulFracDiv = 1; mulFracDiv <= 15; mulFracDiv++) {
+        for (dividerAddFracDiv = 0; dividerAddFracDiv <= 15; dividerAddFracDiv++) {
+            temp = (mulFracDiv * uClk) / (mulFracDiv + dividerAddFracDiv);
+
+            divider = temp / baudrate;
+            if ((temp % baudrate) > (baudrate / 2))
+                divider++;
+
+            if (divider > 2 && divider < 65536) {
+                calcBaudrate = temp / divider;
+
+                if (calcBaudrate <= baudrate) {
+                    relativeError = baudrate - calcBaudrate;
+                } else {
+                    relativeError = calcBaudrate - baudrate;
+                }
+
+                if (relativeError < relativeOptimalError) {
+                    mulFracDivOptimal = mulFracDiv;
+                    dividerAddOptimal = dividerAddFracDiv;
+                    dividerOptimal = divider;
+                    relativeOptimalError = relativeError;
+                    if (relativeError == 0)
+                        break;
+                }
+            }
+        }
+
+        if (relativeError == 0)
+            break;
+    }
+
+    if (relativeOptimalError < ((baudrate * UART_ACCEPTED_BAUDRATE_ERROR) / 100)) {
+
+        LPC_UART3->LCR |= DLAB_ENABLE; 	// importante poner a 1
+        LPC_UART3->DLM = (unsigned char) ((dividerOptimal >> 8) & 0xFF);
+        LPC_UART3->DLL = (unsigned char) dividerOptimal;
+        LPC_UART3->LCR &= ~DLAB_ENABLE;	// importante poner a 0
+
+        LPC_UART3->FDR = ((mulFracDivOptimal << 4) & 0xF0) | (dividerAddOptimal & 0x0F);
+
+        errorStatus = 0; //< Success
+    }
+
+    return errorStatus;
+}
+
+
+void uart3_init(int baudrate) {
+    
+		LPC_SC->PCONP |= (1<<25);
+    LPC_PINCON->PINSEL1 |=(3<<18)|(3<<20);// Change P0.25 and P0.26 mode to TXD3 and RXD3
+  
+    LPC_UART3->LCR &= ~STOP_1_BIT & ~PARITY_NONE; // Set 8N1 mode (8 bits/dato, sin pariad, y 1 bit de stop)
+    LPC_UART3->LCR |= CHAR_8_BIT;
+
+    uart3_set_baudrate(baudrate);// Set the baud rate
+        
+    LPC_UART3->IER = RBR_IRQ_ENABLE;// Enable UART TX and RX interrupt (for LPC17xx UART)   
+    NVIC_EnableIRQ(UART3_IRQn);// Enable the UART interrupt (for Cortex-CM3 NVIC)
+   
+}
