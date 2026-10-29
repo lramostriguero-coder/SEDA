@@ -522,10 +522,18 @@ int main (void)
 		 GUI_Text(zone_3.x + zone_3.size_x/2 - (strlen(porcentaje)/2)*8, zone_3.y + zone_3.size_y/2 - 8,
              (uint8_t*) porcentaje, White, Black);	*/
 		 
-		 LCD_Clear(Black);
-		 for (i=0; i < 360; i++) {
-				LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
-								     100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), White); 
+		LCD_Clear(Black);
+		for (i=0; i < 360; i++) {
+			// añadido
+			if (i < 180)
+				lidar_scan_360[i] += 1;
+			else 
+				lidar_scan_360[i] += 0.5;
+			// fin añadido
+			
+			LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
+							     100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), 
+									 White); 
 		} 	 
 	}   
 }
