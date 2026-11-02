@@ -5,7 +5,10 @@
  2  tx_cadena_UART0(char *ptr)
  3  uart0_set_baudrate(unsigned int baudrate) 
  4  uart0_init(int baudrate) 
-  
+ 5  UART3_IRQHandler(void)
+ 6  uart3_set_baudrate(unsigned int baudrate) 
+ 7  uart3_init(int baudrate) 
+ 8	Camsense_Checksum(uint8_t *data)
  */
 #include <LPC17xx.h>
 #include "uart.h"
@@ -18,16 +21,16 @@ void UART0_IRQHandler(void) {
 	
   switch(LPC_UART0->IIR&0x0E) {
 	
-	case 0x04:								 /* RBR, Receiver Buffer Ready */
+	case 0x04:								 	/* RBR, Receiver Buffer Ready */
       *ptr_rx=LPC_UART0->RBR; 	   			 /* lee el dato recibido y lo almacena */
 	    if (*ptr_rx++ ==13){ 				// Caracter return --> Cadena completa
-          *ptr_rx=0;		/* Añadimos el caracter null para tratar los datos recibidos como una cadena*/ 
-          rx_completa = 1;/* rx completa */
-          ptr_rx=buffer;	/* puntero al inicio del buffer para nueva recepción */
+          *ptr_rx=0;					/* Añadimos el caracter null para tratar los datos recibidos como una cadena*/ 
+          rx_completa = 1;		/* rx completa */
+          ptr_rx=buffer;			/* puntero al inicio del buffer para nueva recepción */
       }
       break;
 	
-   case 0x02:								/* THRE, Transmit Holding Register empty */
+   case 0x02:									/* THRE, Transmit Holding Register empty */
 		if (*ptr_tx!=0) LPC_UART0->THR=*ptr_tx++;	/* carga un nuevo dato para ser transmitido */
 		else tx_completa=1;
 		break;
@@ -38,8 +41,7 @@ void UART0_IRQHandler(void) {
 // Función para enviar una cadena de texto
 // El argumento de entrada es la dirección de la cadena, o
 // directamente la cadena de texto entre comillas
-void tx_cadena_UART0(char *cadena)
-{
+void tx_cadena_UART0(char *cadena){
 		ptr_tx=cadena;
 		tx_completa=0;
 		LPC_UART0->THR=*ptr_tx++;	 // IMPORTANTE: Introducir un carácter al comienzo para iniciar TX o
@@ -140,28 +142,6 @@ void uart0_init(int baudrate) {
  * UART3 interrupt handler
  */
 
-uint16_t Camsense_Checksum( uint8_t *data){
-	uint32_t acc = 0;
-	int i;
-	uint16_t checksum;
-	uint16_t word;
-	
-	// Procesar los primeros 34 bytes 
-	// como 17 palabras de 16 bits
-	for(i = 0; i <17; i++){
-		word =
-				(uint16_t)data[2*i] | 
-				((uint16_t)data[2*i + 1] << 8);
-		acc= (acc <<1) + word;
-	}
-	
-	// Plegado a 15 bits
-	checksum = 
-				((acc & 0x7FFF)+(acc >> 15)) & 0x7FFF;
-	
-	return checksum;
-}
-
 void UART3_IRQHandler(void) {
 	
   switch(LPC_UART3->IIR&0x0E) {
@@ -170,10 +150,9 @@ void UART3_IRQHandler(void) {
 			dato_rx3 = LPC_UART3->RBR;
 			maquina_estados_lidar(dato_rx3);
       break;
+	
 	}
 }
-
-
 
 static int uart3_set_baudrate(unsigned int baudrate) {
     int errorStatus = -1; //< Failure
@@ -252,8 +231,8 @@ static int uart3_set_baudrate(unsigned int baudrate) {
 
 void uart3_init(int baudrate) {
     
-		LPC_SC->PCONP |= (1<<25);
-    LPC_PINCON->PINSEL1 |=(3<<18)|(3<<20);// Change P0.25 and P0.26 mode to TXD3 and RXD3
+		LPC_SC->PCONP |= (1<<25);			// Enable UART3 alimentation
+    LPC_PINCON->PINSEL1 |=(3<<18)|(3<<20);				// Change P0.25 and P0.26 mode to TXD3 and RXD3
   
     LPC_UART3->LCR &= ~STOP_1_BIT & ~PARITY_NONE; // Set 8N1 mode (8 bits/dato, sin pariad, y 1 bit de stop)
     LPC_UART3->LCR |= CHAR_8_BIT;
@@ -262,4 +241,26 @@ void uart3_init(int baudrate) {
         
     LPC_UART3->IER = RBR_IRQ_ENABLE;// Enable UART RX interrupt (for LPC17xx UART)   
     NVIC_EnableIRQ(UART3_IRQn);// Enable the UART interrupt (for Cortex-CM3 NVIC)
+}
+
+uint16_t Camsense_Checksum(uint8_t *data){
+	uint32_t acc = 0;
+	int i;
+	uint16_t checksum;
+	uint16_t word;
+	
+	// Procesar los primeros 34 bytes 
+	// como 17 palabras de 16 bits
+	for(i = 0; i <17; i++){
+		word =
+				(uint16_t)data[2*i] | 
+				((uint16_t)data[2*i + 1] << 8);
+		acc= (acc <<1) + word;
+	}
+	
+	// Plegado a 15 bits
+	checksum = 
+				((acc & 0x7FFF)+(acc >> 15)) & 0x7FFF;
+	
+	return checksum;
 }

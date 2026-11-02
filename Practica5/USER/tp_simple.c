@@ -5,26 +5,23 @@
 #include <string.h>
 #include "uart.h"
 #include <math.h>
+//>include SIGNAL.INI
 
 #define Fpclk 25e6	// Fcpu/4 (defecto después del reset)
 #define Fpwm 2e3		// Frecuencia de la señal PWM (2kHz)
 
-#define ZONAS 2
+#define ZONAS 2			// Zona valida o no valida
 
+/* Estructura de zona inicial y zona final captadas por el LIDAR */
 struct t_zona
 {
 	uint16_t inicial;
 	uint16_t final;
 };
 
-struct t_zona zonas_validas[ZONAS] = {0, 45}, {180, 270};
+/* Definicion de zona valida o invalida captadas por el LIDAR */
+struct t_zona zonas_validas[ZONAS] = {{0, 45}, {180, 270}};
 
-uint16_t zona_valida (int angulo){
-	int z;
-	for ( z= 0; z < ZONAS; z++){
-		 if((angulo >= zonas_validas[z].inicial)&&(angulo <= zonas_validas[z].final)){
-	}
-}
 
 /* Estructura que define una zona de la pantalla */
 struct t_screenZone
@@ -48,6 +45,32 @@ struct t_screenZone zone_8 = { 55, 276,  30,  30, 0}; /* 				Botón  Aumentar    
 struct t_screenZone zone_9 = {155, 276,  30,  30, 0}; /* 				Botón  Disminuir   			 */
 
 
+/* Estados para comandos por Terminal */
+typedef enum 
+{
+	enviando_msj_inicial, 
+	msj_inicial_enviado,
+	enviando_mensaje_ordenes,
+	enviado_mensaje_ordenes, 
+	esperando_comando,
+	notificando_medida,
+	modificando_distancia,
+	notificando_comando_erroneo,
+	notificando_finalizacion, 
+	fin
+} t_estado;
+
+/* Estados para recepcion tramas LIDAR */
+typedef enum
+{
+	esperando_cab1,
+	esperando_cab2,
+	esperando_cab3,
+	esperando_cab4,
+	recibiendo_datos
+} t_estado_LIDAR;
+
+
 /* Flag que indica si se detecta una pulsación válida */
 uint8_t pressedTouchPanel = 0;
 
@@ -61,7 +84,7 @@ char grado[25];
 char cm[25];
 char porcentaje[25];
 
-/* Variables para UART */
+/* Variables para comunicacion por Terminal (UART0) */
 char buffer[100];			// Buffer de recepción de 100 caracteres
 char buffer_tx[100];	// Buffer de recepción de 100 caracteres
 char *ptr_rx;					// puntero de recepción
@@ -69,84 +92,83 @@ char rx_completa;			// Flag de recepción de cadena que se activa a "1" al recibi
 char *ptr_tx;					// puntero de transmisión
 char tx_completa;			// Flag de transmisión de cadena que se activa al transmitir el caracter null (fin de cadena)
 
-/* Estados */
-typedef enum {
-	enviando_msj_inicial, 
-	msj_inicial_enviado,
-	enviando_mensaje_ordenes,
-	enviado_mensaje_ordenes, 
-	esperando_comando,
-	notificando_medida,
-	modificando_distancia,
-	notificando_comando_erroneo,
-	notificando_finalizacion, 
-	fin} t_estado;
+t_estado estado; 	// Variable estado para comandos por Terminal
 
-t_estado estado;	// Variable estado
-
-/* Variables para Rx datos LIDAR */
-uint8_t dato_rx3;
-uint8_t trama_lidar[TAM_TRAMA];
-uint32_t tramas_ok = 0;
-uint32_t tramas_error = 0;
-uint8_t indice_trama = 0;
-uint16_t lidar_scan_360[360];	
+/* Variables para Rx datos LIDAR (UART3) */
+uint8_t dato_rx3;									// Buffer de recepcion de trama del LIDAR (1 Byte)
+uint8_t trama_lidar[TAM_TRAMA];		// Buffer de recepcion de tramas del LIDAR (36 Bytes)
+uint32_t tramas_ok = 0;						// Flag de recepcion de tramas correcta
+uint32_t tramas_error = 0;				// Flag de error en trama recibida
+uint8_t indice_trama = 0;					// Numero de byte de la trama
+uint16_t lidar_scan_360[360];			// Array para almacenar medidas de distancia
 	
-/* Estados para recepcion tramas LIDAR */
-typedef enum{
-	esperando_cab1,
-	esperando_cab2,
-	esperando_cab3,
-	esperando_cab4,
-	recibiendo_datos
-} t_estado_LIDAR;
+t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial Rx LIDAR
 
-t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial lidar
 
-/* Paso 6: extrae las 8 muestras de una trama con CRC correcto y las guarda en lidar_scan_360 */
+/* Funcion comprobacion zona valida */
+uint16_t zona_valida (int angulo){
+	int z;
+	
+	for ( z= 0; z < ZONAS; z++)
+	{
+	  if((angulo >= zonas_validas[z].inicial)&&(angulo <= zonas_validas[z].final))
+			return 1;	// Zona valida
+	}
+	
+	return 0;			// Zona no valida
+}
+
+/* Extraer las 8 muestras de una trama con CRC correcto y guardarla en lidar_scan_360 */
 void extraer_muestras(void)
 {
 	float ang_ini, ang_fin, inc_ang, ang_i;
 	uint16_t distancia;
 	int i, indice;
 	
-	// 6.1 Ángulo inicial (bytes 6-7) y final (bytes 32-33). Primero byte bajo, luego alto. Vienen x64
-	ang_ini = ((trama_lidar[7] << 8) | trama_lidar[6]) / 64.0f;
-	ang_fin = ((trama_lidar[33] << 8) | trama_lidar[32]) / 64.0f;
+	// Angulo inicial (bytes 6-7) y final (bytes 32-33).
+	// Primero byte bajo, luego alto.
+	// Vienen multiplicadas por 64
+	ang_ini = ((trama_lidar[7] << 8) | trama_lidar[6])/64.0f;
+	ang_fin = ((trama_lidar[33] << 8) | trama_lidar[32])/64.0f;
  
-	// 6.2 Incremento de ángulo entre muestras
-	if (ang_fin < ang_ini)			// Paso por 360º: corregir para que el incremento no salga negativo
-		ang_fin = ang_fin + 360;
-	inc_ang = (ang_fin - ang_ini) / 8;
+	if (ang_fin < ang_ini)								
+		ang_fin = ang_fin + 360;						// +360º en caso de angulo incremento negativo
+	
+	// Incremento de ángulo entre muestras
+	inc_ang = (ang_fin - ang_ini)/8;
  
-	// 6.3 Ángulo y distancia de cada una de las 8 muestras
-
-	for (i = 0; i < 8; i++){
-		ang_i = ang_ini + i * inc_ang;
-		indice = (int)(ang_i + 0.5f) % 360;		// round(ang_i) mod 360
+	// Ángulo y distancia de cada una de las 8 muestras
+	for (i = 0; i < 8; i++)
+	{
+		ang_i = (ang_ini + i * inc_ang);			// angulo en la muestra
+		indice = (int)(ang_i + 0.5f) % 360;		// round(ang_i) mod 360 : angulo de toma de medida
 		
-		// Distancia: byte 8+3i (bajo) y 9+3i (alto). El byte 10+3i es la calidad (no se usa)
+		// Distancia: byte 8+3*i (bajo) y 9+3*i (alto). Byte 10+3*i es la calidad
 		distancia = (trama_lidar[9 + 3*i] << 8) | trama_lidar[8 + 3*i];
+		
 		if (distancia & 0x8000)		// 0x8000: el LiDAR no ha medido nada en ese ángulo
 			distancia = 0;
+		
 		lidar_scan_360[indice] = distancia;
 	}
 }
  
 	
-// Maquina de estados Rx LIDAR
+/* Maquina de estados: Rx LIDAR */
 void maquina_estados_lidar(uint8_t dato)
 {
 	switch(estado_lidar){
 	case esperando_cab1:
-		if (dato == 0x55){
+		if (dato == 0x55)
+		{
 			trama_lidar[0] = dato;
 			estado_lidar = esperando_cab2;
 		}
 		break;
 
 	case esperando_cab2:
-		if (dato == 0xAA){
+		if (dato == 0xAA)
+		{
 			trama_lidar[1] = dato;
 			estado_lidar = esperando_cab3;
 		}
@@ -155,7 +177,8 @@ void maquina_estados_lidar(uint8_t dato)
 		break;
 
 	case esperando_cab3:
-		if (dato == 0x03){
+		if (dato == 0x03)
+		{
 			trama_lidar[2] = dato;
 			estado_lidar = esperando_cab4;
 		}
@@ -164,7 +187,8 @@ void maquina_estados_lidar(uint8_t dato)
 		break;
 
 	case esperando_cab4:								
-		if (dato == 0x08){
+		if (dato == 0x08)
+		{
 			trama_lidar[3] = dato;
 			indice_trama = 4;								// Los datos empiezan en la posición 4
 			estado_lidar = recibiendo_datos;
@@ -175,23 +199,27 @@ void maquina_estados_lidar(uint8_t dato)
 	
 	case recibiendo_datos:
 		trama_lidar[indice_trama++] = dato;
-		if (indice_trama == TAM_TRAMA){		// Trama completa (36 bytes)
-			// CRC recibido: byte 34 (parte baja) y byte 35 (parte alta)
-			if (Camsense_Checksum(trama_lidar) == (trama_lidar[34] | (trama_lidar[35] << 8))){
+		if (indice_trama == TAM_TRAMA)		// Trama completa (36 bytes)
+		{	// CRC recibido: byte 34 (parte baja) y byte 35 (parte alta)
+			if (Camsense_Checksum(trama_lidar) == (trama_lidar[34] | (trama_lidar[35] << 8))) // Comprobar CRC
+			{
 				tramas_ok++;
-				// Paso 6: aquí se extraerán las 8 muestras de la trama
-				extraer_muestras();
+				extraer_muestras();						// Extraer las 8 muestras de la trama
 			}
 			else
 				tramas_error++;
-			estado_lidar = esperando_cab1;		// Siguiente trama
+			
+			estado_lidar = esperando_cab1;	// Siguiente trama
 		}
+		break;
+		
+	default:
 		break;
 	}
 	
 }	
 	
-// Funcion maquina de estados Terminal
+/* Maquina de estados: comandos por Terminal */
 void maquina_de_estados (void){
 	
 		 switch(estado){
@@ -201,7 +229,7 @@ void maquina_de_estados (void){
 				break;
 				
 		 case msj_inicial_enviado:
-				tx_cadena_UART0("Introduce un comando apaga, enciende, GetMedida o SetUmbralDistancia, fin.\n");
+				tx_cadena_UART0("Introduce un comando apaga, enciende, GetMedida, SetUmbralDistancia o fin.\n");
 				estado = enviando_mensaje_ordenes;
 				break;
 		 
@@ -215,29 +243,34 @@ void maquina_de_estados (void){
 				break;
 		 
 		 case esperando_comando:
-				if(rx_completa){
+				if(rx_completa)
+				{
 					rx_completa = 0;
 					if (strcmp(buffer, "enciende\r") == 0)
 						LPC_GPIO3->FIOPIN&=~(1<<26);					 	// Led P3.26 encendido
           else if (strcmp (buffer, "apaga\r") == 0)  
 						LPC_GPIO3->FIOPIN|=(1<<26);							// Led P3.26 apagado
 					
-					else if ((strcmp(buffer, "GetMedida\r")) == 0){
+					else if ((strcmp(buffer, "GetMedida\r")) == 0)
+					{
 						// Guardar en buffer Tx el valor de las variables						
 						sprintf(buffer_tx, "Angulo: %d grados, Umbral de Distancia: %.1f cm, Brillo: %d %%", angLIDAR, umbDISTANCIA, brilloDISP);
 						tx_cadena_UART0(buffer_tx);																							// Transmitir buffer
 						estado = notificando_medida;
 					}
-					else if (sscanf(buffer, "SetUmbralDistancia %f", &umbDISTANCIA) == 1){		// Esperar a introducir valor Distancia y guardar en umbralDistancia
+					else if (sscanf(buffer, "SetUmbralDistancia %f", &umbDISTANCIA) == 1)
+					{		// Esperar a introducir valor Distancia y guardar en umbralDistancia
 						sprintf(buffer_tx, "Umbral de distancia = %.1f cm\n\r", umbDISTANCIA);	// Guardar valor de umbralDistancia en buffer de Tx
 						tx_cadena_UART0(buffer_tx);																							// Transmitir buffer
 						estado = notificando_medida;
 					}
-          else if (strcmp (buffer, "fin\r") == 0){		
+          else if (strcmp (buffer, "fin\r") == 0)
+					{		
 						tx_cadena_UART0("Fin del programa.\r");
 						estado = notificando_finalizacion;
 					}
-          else {
+          else
+					{
 						tx_cadena_UART0("Comando erroneo\n\r");
 						estado = notificando_comando_erroneo;
 					} 
@@ -469,10 +502,12 @@ void setBrillo(float brilloDISP) {
    LPC_PWM1->LER|=(1<<6)|(1<<0);
 }
 
+
 int main (void) 
 { 
 	int i;
 	uint16_t color;
+	
 	configPWM();
   LCD_Initializtion();
   LCD_Clear(Black);	
@@ -483,7 +518,7 @@ int main (void)
 	
 	// UART0,3 (Comandos por Terminal y Rx datos LIDAR)
 	LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
-  LPC_GPIO3->FIOCLR |= (1<<26);	// P3.26 apagado 
+  LPC_GPIO3->FIOSET |= (1<<26);	// P3.26 apagado 
 
   ptr_rx=buffer;	    		  // Inicializa el puntero de recepción al comienzo del buffer
   uart0_init(115200); 		 	// Configura la UART0 a 115200 baudios, 8 bits, 1 bit stop
@@ -491,8 +526,6 @@ int main (void)
 	
   tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
   estado = enviando_msj_inicial;
-	// Fin inicialicacion UART0,3
-	
 	
 	while(1){
 		 maquina_de_estados();
@@ -538,7 +571,8 @@ int main (void)
 		 GUI_Text(zone_2.x + zone_2.size_x/2 - (strlen(cm)/2)*8, zone_2.y + zone_2.size_y/2 - 8,
              (uint8_t*) cm, White, Black);	
 		 GUI_Text(zone_3.x + zone_3.size_x/2 - (strlen(porcentaje)/2)*8, zone_3.y + zone_3.size_y/2 - 8,
-             (uint8_t*) porcentaje, White, Black);	*/
+             (uint8_t*) porcentaje, White, Black);	
+		 */
 		 
 		LCD_Clear(Black);
 		for (i=0; i < 360; i++) {

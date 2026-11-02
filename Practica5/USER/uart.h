@@ -31,18 +31,18 @@ extern char rx_completa;	// Flag de recepción de cadena completa que se activa a
 extern char *ptr_tx;			// puntero de transmisión
 extern char tx_completa;	// Flag de transmisión de cadena completa
 
-extern void uart0_init(int baudrate);
-extern void tx_cadena_UART0(char *ptr);
+extern void uart0_init(int baudrate);		// Configuracion UART0
+extern void tx_cadena_UART0(char *ptr); 
 
-extern uint8_t dato_rx3;
-extern void uart3_init(int baudrate);
+extern uint8_t dato_rx3;								// Buffer de recepcion de trama del LIDAR (1 Byte)
+extern void uart3_init(int baudrate);		// Configruacion UART3
 
-extern uint8_t trama_lidar[TAM_TRAMA];
-extern uint32_t tramas_ok;
-extern uint32_t tramas_error;
-extern void maquina_estados_lidar(uint8_t dato);
+extern uint8_t trama_lidar[TAM_TRAMA];	// Buffer de recepcion de tramas del LIDAR (36 Bytes)
+extern uint32_t tramas_ok;							// Flag de recepcion de tramas correcta
+extern uint32_t tramas_error;						// Flag de error en trama recibida
 
-extern uint16_t Camsense_Checksum(uint8_t *data);
+extern void maquina_estados_lidar(uint8_t dato);	// Funcion maquina de estados: Rx tramas del LIDAR
+extern uint16_t Camsense_Checksum(uint8_t *data);	// Funcion de comprobacion de CRC en tramas recibidas
 
 
 #endif /* UART_H_ */
