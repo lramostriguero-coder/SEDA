@@ -5,10 +5,16 @@
 #include <string.h>
 #include "uart.h"
 #include <math.h>
-//>include SIGNAL.INI
 
 #define Fpclk 25e6	// Fcpu/4 (defecto después del reset)
 #define Fpwm 2e3		// Frecuencia de la señal PWM (2kHz)
+
+#define T_pwm 15e-3
+
+#define Tmin 0.5e-3	
+#define Tmax 2.6e-3	
+uint32_t cuentas_periodo = Fpclk * T_pwm;
+uint32_t cuentas[2];
 
 #define ZONAS 2			// Zona valida o no valida
 
@@ -104,6 +110,81 @@ uint16_t lidar_scan_360[360];			// Array para almacenar medidas de distancia
 	
 t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial Rx LIDAR
 
+
+void init_TIMER0(void)
+{
+	  LPC_SC->PCONP|=(1<<1);						// Power ON
+    LPC_TIM0->MCR = (1<<0)|(1<<3);  	// Interrup on MATCH 1 y MATCH 0 (Running TC) 
+    LPC_TIM0->MR0 = 20000; 						// Valor inicial cualquiera  
+    LPC_TIM0->MR1 = 10000; 						// Valor inicial cualquiera  
+		LPC_TIM0->EMR = 0xF0;   		 		  // Toggle on MATCH0.0 y MATCH0.1
+    LPC_TIM0->TCR = 0x01;     				// Start 
+}	
+
+void TIMER0_IRQHandler(void)
+{
+	if (LPC_TIM0->IR & (1<<0)) 		//MATCH 0?
+		{ 
+		LPC_TIM0->IR=(1<<0);				// Clear flag MR0	
+		if (LPC_TIM0->EMR & (1<<0))
+		{
+			LPC_TIM0->MR0 += cuentas[0];
+		} 
+		else
+		{
+			LPC_TIM0->MR0 += cuentas_periodo - cuentas[0];
+		}
+	}
+	if (LPC_TIM0->IR & (1<<1)) 		//MATCH 1?
+	{
+		LPC_TIM0->IR=(1<<1);				// Clear flag MR1
+		if (LPC_TIM0->EMR & (1<<1))
+		{
+			LPC_TIM0->MR1 += cuentas[1];
+		} 
+		else
+		{
+			LPC_TIM0->MR1 += cuentas_periodo - cuentas[1];
+		}
+	}
+}
+
+void delay_ms(int ms) {
+   int i,j;
+   for (j=0; j < ms; j++ )
+      for (i=0; i < 17000; i++);
+}
+
+void set_indicador_360(uint16_t grados)
+{
+	uint16_t ang;                       // Angulo total
+	uint16_t g0, g1;                    // Grados de cada servo (g0 = servo0, g1 = servo1)
+	
+	if (grados == 0 || grados > 360) return; // Valor de grados erroneo
+ 
+	for (ang = 0; ang <= 360; ang += grados) // Bucle para aplicar grados a servos
+	{
+		if (ang <= 180) 											 
+			{ 
+				g0 = ang;
+				g1 = 0;        
+			}
+		else																		            
+			{
+				g0 = 180; 
+				g1 = ang - 180; 
+			}
+			
+		cuentas[0] = Fpclk*Tmin + Fpclk*(Tmax-Tmin)*g0/180; // Girar servo 0
+		cuentas[1] = Fpclk*Tmin + Fpclk*(Tmax-Tmin)*g1/180; // Girar servo 1
+			
+		delay_ms(200);
+	} 
+	delay_ms(1000);                     // Delay para poder retroceder al reposo
+	cuentas[0] = Fpclk*Tmin;      			// Servos en reposo
+	cuentas[1] = Fpclk*Tmin;						
+	delay_ms(1000);                     // Tiempo para llegar a reposo
+}
 
 /* Funcion comprobacion zona valida */
 uint16_t zona_valida (int angulo){
@@ -502,7 +583,15 @@ void setBrillo(float brilloDISP) {
    LPC_PWM1->LER|=(1<<6)|(1<<0);
 }
 
- 
+ /* PRUEBA pasos 8, 9 y 10: rellena lidar_scan_360 con valores conocidos (mm) */
+void cargar_prueba(void)
+{
+	int i;
+	for (i = 0; i < 360; i++)   lidar_scan_360[i] = 600;	// "Pared" circular a 60 cm
+	for (i = 20; i <= 30; i++)  lidar_scan_360[i] = 200;	// Objeto en zona válida -> rojo
+	for (i = 90; i <= 100; i++) lidar_scan_360[i] = 200;	// Objeto en zona ignorada -> azul
+	for (i = 220; i <= 230; i++) lidar_scan_360[i] = 150;	// Objeto más cercano en zona válida -> rojo
+}
 
 int main (void) 
 { 
@@ -522,15 +611,28 @@ int main (void)
   // screenMain();
 	
 	// UART0,3 (Comandos por Terminal y Rx datos LIDAR)
-	LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
-  LPC_GPIO3->FIOSET |= (1<<26);	// P3.26 apagado 
+	// LPC_GPIO3->FIODIR |= (1<<26);	// P3.26 definido como salida  
+  // LPC_GPIO3->FIOSET |= (1<<26);	// P3.26 apagado 
 
   ptr_rx=buffer;	    		  // Inicializa el puntero de recepción al comienzo del buffer
   uart0_init(115200); 		 	// Configura la UART0 a 115200 baudios, 8 bits, 1 bit stop
 	uart3_init(115200);				// Configura la UART3 a 115200 baudios, 8 bits, 1 bit stop
 	
+	LPC_PINCON->PINSEL7|=(2<<18); // P3.25 es MAT0.0	
+	LPC_PINCON->PINSEL7|=(2<<20); // P3.26 es MAT0.1	
+	
+	cuentas[0]= Fpclk*Tmin;			// Posicion de reposo servo 0
+	cuentas[1]= Fpclk*Tmin;			// Posicion de reposo servo 1
+	
+	set_indicador_360(0);
+	
+	init_TIMER0();
+	NVIC_EnableIRQ(TIMER0_IRQn);
+
+	
   tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
   estado = enviando_msj_inicial;
+	cargar_prueba();
 	while(1){
 		 maquina_de_estados();
      checkTouchPanel();
@@ -601,17 +703,17 @@ int main (void)
 			LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
 							     100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), 
 									 color); 
-									 
 		}
+		
 		if(deteccion)
 		{
-			LPC_GPIO3->FIOCLR |= (1 << 26);
+			set_indicador_360(angulo_deteccion);
 			sprintf(texto, "Objeto detectado: %3d grados %4d mm", angulo_deteccion, distancia_minima);
 			GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
 		}
 		else
 		{
-			LPC_GPIO3->FIOSET |= (1 << 26);
+			set_indicador_360(0);
 			GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
 		}
 			 
