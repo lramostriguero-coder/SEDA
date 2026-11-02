@@ -112,10 +112,10 @@ uint16_t zona_valida (int angulo){
 	for ( z= 0; z < ZONAS; z++)
 	{
 	  if((angulo >= zonas_validas[z].inicial)&&(angulo <= zonas_validas[z].final))
-			return 1;									// Zona valida
+			return 1;	// Zona valida
 	}
 	
-	return 0;											// Zona no valida
+	return 0;			// Zona no valida
 }
 
 /* Extraer las 8 muestras de una trama con CRC correcto y guardarla en lidar_scan_360 */
@@ -502,11 +502,16 @@ void setBrillo(float brilloDISP) {
    LPC_PWM1->LER|=(1<<6)|(1<<0);
 }
 
+ 
 
 int main (void) 
 { 
 	int i;
 	uint16_t color;
+	uint8_t deteccion;
+	uint16_t distancia_minima;
+	int angulo_deteccion;
+	char texto[40];
 	
 	configPWM();
   LCD_Initializtion();
@@ -526,7 +531,6 @@ int main (void)
 	
   tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
   estado = enviando_msj_inicial;
-	
 	while(1){
 		 maquina_de_estados();
      checkTouchPanel();
@@ -575,17 +579,42 @@ int main (void)
 		 */
 		 
 		LCD_Clear(Black);
-		if (!zona_valida(i))
-			 color = Blue;
-		else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
-			color  = Red;
-		else 
-			color = White; 	
-		
-		LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
-							   100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), 
-								 color); 
- 
+		deteccion = 0;
+		distancia_minima = 0xFFFF;
+		for (i=0; i < 360; i++) 
+		{
+			if(!zona_valida(i))
+				color = Blue;
+			if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
+			{
+				color  = Red;
+				deteccion = 1;
+				if (lidar_scan_360[i] < distancia_minima)
+				{
+					distancia_minima = lidar_scan_360[i];
+					angulo_deteccion = i;
+				}
+			}
+			else 
+				color = White;
+			
+			LCD_SetPoint(100+(int)((lidar_scan_360[i]/10.0f)*sin(i*3.14/180)),
+							     100+(int)((lidar_scan_360[i]/10.0f)*cos(i*3.14/180)), 
+									 color); 
+									 
+		}
+		if(deteccion)
+		{
+			LPC_GPIO3->FIOCLR |= (1 << 26);
+			sprintf(texto, "Objeto detectado: %3d grados %4d mm", angulo_deteccion, distancia_minima);
+			GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+		}
+		else
+		{
+			LPC_GPIO3->FIOSET |= (1 << 26);
+			GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+		}
+			 
 	}   
 }
 
