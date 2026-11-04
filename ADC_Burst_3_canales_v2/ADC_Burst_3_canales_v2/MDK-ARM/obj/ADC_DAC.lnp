@@ -1,0 +1,8 @@
+--cpu Cortex-M3
+".\obj\system_lpc17xx.o"
+".\obj\startup_lpc17xx.o"
+".\obj\main.o"
+--strict --scatter ".\obj\ADC_DAC.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\lst\ADC_DAC.map" -o .\obj\ADC_DAC.axf
