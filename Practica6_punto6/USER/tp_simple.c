@@ -49,7 +49,6 @@ struct t_screenZone zone_6 = { 55, 174,  30,  30, 0}; /* 				Botón  Aumentar    
 struct t_screenZone zone_7 = {155, 174,  30,  30, 0}; /* 				Botón  Disminuir  			 */
 struct t_screenZone zone_8 = { 55, 276,  30,  30, 0}; /* 				Botón  Aumentar    			 */
 struct t_screenZone zone_9 = {155, 276,  30,  30, 0}; /* 				Botón  Disminuir   			 */
-struct t_screenZone zone_10 = {170, 10,  10,  10, 0}; /* 				Botón  Menu       			 */
 
 
 /* Estados para comandos por Terminal */
@@ -579,7 +578,7 @@ void setBrillo(float brilloDISP)
 
 int main (void) 
 { 
-	int i;											// Variable de bucle para recorrer lidar_scan_360
+	int i;											// variable de bucle para recorrer lidar_scan_360
 	uint16_t color;
 	uint8_t deteccion;					// '1' => objeto detectado,  '0'=> sin detección
 	uint16_t distancia_minima;	// umbral de distancia de prueba
@@ -591,7 +590,8 @@ int main (void)
   LCD_Clear(Black);		
   TP_Init(); 
   //TouchPanel_Calibrate(); /* Configurar "matrix" y comentar para eliminar la calibración */
-  screenMain(); 					/* Comentar para ver salida LiDAR */
+  
+  // screenMain(); 					/* Comentar para ver salida LiDAR */
 	
 	/* UART0 y 3 (Comandos por Terminal y Rx datos LIDAR) */
   ptr_rx=buffer;	    		  // Inicializa el puntero de recepción al comienzo del buffer
@@ -617,94 +617,43 @@ int main (void)
 		maquina_de_estados();
     //checkTouchPanel();
 		setBrillo(brilloDISP);
-		if (zonePressed(&zone_1)){
-				angLIDAR = 0;}
-    if (zonePressed(&zone_2)){
-       umbDISTANCIA = 0;}
-    if (zonePressed(&zone_3)){
-       brilloDISP = 20;}
-    if (zoneNewPressed(&zone_4)){
-		  (angLIDAR == 360) ? angLIDAR = 360 : angLIDAR ++; 
-		}
-    if (zoneNewPressed(&zone_5)){
-		  (angLIDAR == 0) ? angLIDAR = 0 : angLIDAR --; 
-    }
-		if (zoneNewPressed(&zone_6)){
-		  umbDISTANCIA = umbDISTANCIA + 0.1;
-		}
-		if (zoneNewPressed(&zone_7)){
-		 if (umbDISTANCIA <= 0.1) {
-				umbDISTANCIA = 0;}
-		 else {
-				umbDISTANCIA = umbDISTANCIA - 0.1;}
-		}
-		if (zonePressed(&zone_8)){
-		 (brilloDISP < 100) ? brilloDISP = brilloDISP + 1 : brilloDISP;
-		}
-		if (zonePressed(&zone_9)){
-		 if(brilloDISP == 20) { 						// Brillo incial 20% para observar mejor el cambio del brillo
-				brilloDISP = 20;} 
-		 else { 
-				brilloDISP = brilloDISP - 1;}
-		}
-
-		sprintf(grado, "%4d", angLIDAR);
-		sprintf(cm,"%5.1f", umbDISTANCIA);
-		sprintf(porcentaje, "%3d", brilloDISP);
-		
-    GUI_Text(zone_1.x + zone_1.size_x/2 - (strlen(grado)/2)*8, zone_1.y + zone_1.size_y/2 - 8,
-            (uint8_t*) grado, White, Black);	
-		GUI_Text(zone_2.x + zone_2.size_x/2 - (strlen(cm)/2)*8, zone_2.y + zone_2.size_y/2 - 8,
-            (uint8_t*) cm, White, Black);	
-		GUI_Text(zone_3.x + zone_3.size_x/2 - (strlen(porcentaje)/2)*8, zone_3.y + zone_3.size_y/2 - 8,
-            (uint8_t*) porcentaje, White, Black);	 
-		
-		/*if (zonePressed(&zone_10))
-		{	
-			if (zonePressed(&zone_1))	// Pulsar sobre zona igual a angLidar en PP para pantalla LiDAR 
+		 
+		LCD_Clear(Black);
+		deteccion = 0;
+		distancia_minima = 0xFFFF;
+		for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
+		{
+			if(!zona_valida(i))
+				color = Blue;				// Ignorar zona no valida
+			else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
 			{
-				LCD_Clear(Black);
-				deteccion = 0;
-				distancia_minima = 0xFFFF;
-				for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
+				color  = Red;				// Objeto cercano detectado
+				deteccion = 1;
+				if (lidar_scan_360[i] < distancia_minima)
 				{
-					if(!zona_valida(i))
-						color = Blue;				// Ignorar zona no valida
-					else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
-					{
-						color  = Red;				// Objeto cercano detectado
-						deteccion = 1;
-						if (lidar_scan_360[i] < distancia_minima)
-						{
-							distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
-							angulo_deteccion = i;										// Angulo de detección
-						}
-					}
-					else 
-						color = White;
-					
-					LCD_SetPoint(120+(int)((lidar_scan_360[i]/20.0f)*sin(i*PI/180)),			// Mostrar por display 
-											160+(int)((lidar_scan_360[i]/20.0f)*cos(i*PI/180)), 			// entorno captado por LiDAR
-											color); 
-				}
-				
-				if(deteccion)
-				{
-					set_indicador_360(angulo_deteccion);			// Apuntar al objeto
-					sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
-					GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
-				}
-				else
-				{
-					set_indicador_360(0);											// En reposo
-					GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+					distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
+					angulo_deteccion = i;										// Angulo de detección
 				}
 			}
-			if (zonePressed(&zone_2))	// Pulsar sobre zona igual a UmbralDistancia para vers menu servos
-			{
-				
-			}
-		}*/
+			else 
+				color = White;
+			
+			LCD_SetPoint(120+(int)((lidar_scan_360[i]/20.0f)*sin(i*PI/180)),			// Mostrar por display 
+							     160+(int)((lidar_scan_360[i]/20.0f)*cos(i*PI/180)), 			// entorno captado por LiDAR
+									 color); 
+		}
+		
+		if(deteccion)
+		{
+			set_indicador_360(angulo_deteccion);			// Apuntar al objeto
+			sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
+			GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+		}
+		else
+		{
+			set_indicador_360(0);											// En reposo
+			GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+		}
 			 
 	}   
 }
