@@ -16,13 +16,14 @@
 
 
 #include <LPC17xx.H>
-#include <Math.h>
+#include <math.h>
+
 #define F_cpu 100e6      // Defecto Keil (xtal=12Mhz)
 #define F_pclk (F_cpu/4) // Defecto despues del reset
-#define F_muestreo 50000 // Fs=50kHz (Cada 20 us se toma una muestra del canal 0, 2 y 4 )
+#define F_muestreo 50 // Fs=50Hz (Cada 20 ms se toma una muestra del canal 0 y 2)
 
 
-uint32_t canal_0, canal_2, canal_4;
+uint32_t canal_0, canal_2;
 
 
 
@@ -31,14 +32,12 @@ void init_ADC(void)
    LPC_SC->PCONP|= (1<<12);                           // POwer ON
    LPC_PINCON->PINSEL1|= ((1<<14)|(1<<18));            // (AD0.0 y AD0.2)  (P0.23 y P0.25)
    LPC_PINCON->PINMODE1|= ((2<<14)|(2<<18));           // Deshabilita pullup/pulldown
-   LPC_PINCON->PINSEL3|= (3<<28);                     // (AD0.4) (P1.30)
-   LPC_PINCON->PINMODE3|= (2<<28);                    // Deshabilita pullup/pulldown
    LPC_SC->PCLKSEL0|= (0x00<<8);                      // CCLK/4 (Fpclk después del reset) (100 Mhz/4 = 25Mhz)
-   LPC_ADC->ADCR|=(1<<0)|(1<<2)|(1<<4)                // canales 0,2,4
+   LPC_ADC->ADCR|=(1<<0)|(1<<2)                				// canales 0,2
                         | (0x01<<8)                   // CLKDIV=1   (Fclk_ADC=25Mhz /(1+1)= 12.5Mhz)
                         | (0x01<<21);                 // PDN=1
    // Ojo no se habilita el modo BURST en la inicialización  
-   LPC_ADC->ADINTEN=(1<<2);					// Hab. interrupción fin de conversión del PENÚLTIMO canal(canal 2)
+   LPC_ADC->ADINTEN=(1<<0);					// Hab. interrupción fin de conversión del PENÚLTIMO canal(canal 0)
    NVIC_EnableIRQ(ADC_IRQn);					// 
    NVIC_SetPriority(ADC_IRQn,2);			   //         
 }	
@@ -62,7 +61,6 @@ void ADC_IRQHandler(void)
    //Almacenamos las muestras a modo de ejemplo
    canal_0= ((LPC_ADC->ADDR0 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR0
    canal_2= ((LPC_ADC->ADDR2 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR2
-   canal_4= ((LPC_ADC->ADDR4 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR4
 }
 
 
@@ -75,7 +73,7 @@ void init_TIMER0(void)
 {
    LPC_SC->PCONP|=(1<<1);                 // 
    LPC_PINCON->PINSEL3|= 0x0C000000;      // 
-   LPC_TIM0->MCR = 0x18;                  //   Interrupt on Match 1 and Reset TC
+   LPC_TIM0->MCR = 0x18;                  //  Interrupt on Match 1 and Reset TC
    LPC_TIM0->MR1 = (F_pclk/F_muestreo)-1; //  Periodo de muestreo de TODAS las entradas!!!!   
    LPC_TIM0->EMR = 0x00C2;                // 
    LPC_TIM0->TCR = 0x01;                  //  

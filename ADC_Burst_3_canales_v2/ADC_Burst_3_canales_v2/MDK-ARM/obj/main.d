@@ -7,4 +7,3 @@
 .\obj\main.o: C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\cmsis_armcc.h
 .\obj\main.o: C:\Keil_v5\packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include\mpu_armv7.h
 .\obj\main.o: C:\Keil_v5\packs\Keil\LPC1700_DFP\2.7.2\Device\Include\system_LPC17xx.h
-.\obj\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\Math.h
