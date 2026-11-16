@@ -101,9 +101,9 @@ typedef enum
 
 t_pantalla pantalla = menu; // Pantalla inicial
 
-volatile uint32_t canal_0, canal_1;
-
-uint8_t nueva_muestra = 0, modo = 0, brillo_auto = 1; // Flags usados en main()
+volatile uint32_t canal_0, canal_1; // Almacenar resultado del ADC
+volatile uint8_t nueva_muestra = 0;
+uint8_t modo = 0, brillo_auto = 1; 	// Flags usados en main()
 //================================================= FIN AÑADIDO (P6) ============================================================================
 
 /* Flag que indica si se detecta una pulsación válida */
@@ -136,7 +136,10 @@ uint32_t tramas_ok = 0;						// Flag de recepcion de tramas correcta
 uint32_t tramas_error = 0;				// Flag de error en trama recibida
 uint8_t indice_trama = 0;					// Numero de byte de la trama
 uint16_t lidar_scan_360[360];			// Array para almacenar medidas de distancia
-	
+uint8_t deteccion = 0;					// '1' => objeto detectado,  '0'=> sin detección
+uint16_t distancia_minima;			// umbral de distancia de prueba
+int angulo_deteccion = 0;				// usada solo si deteccion = 1
+
 t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial Rx LIDAR
 
 
@@ -667,6 +670,36 @@ void setBrillo(float brilloDISP)
 }
 
 // ======================================================== AÑADIDO (P6) ================================================================================
+void analizar_LiDAR(uint8_t dibujar)
+{	
+	int i;													// variable de bucle para recorrer lidar_scan_360
+	uint16_t color;
+	
+	deteccion = 0;
+	distancia_minima = 0xFFFF;
+	for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
+	{
+		if(!zona_valida(i))
+			color = Blue;				// Ignorar zona no valida
+		else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
+		{
+			color  = Red;				// Objeto cercano detectado
+			deteccion = 1;
+			if (lidar_scan_360[i] < distancia_minima)
+			{
+				distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
+				angulo_deteccion = i;										// Angulo de detección
+			}
+		}
+		else 
+			color = White;
+		if(dibujar)
+			LCD_SetPoint(120 + (int)((lidar_scan_360[i] / 20.0f) * sin(i * PI / 180)),			// Mostrar por display el
+									 160 + (int)((lidar_scan_360[i] / 20.0f) * cos(i * PI / 180)), 			// entorno captado por LiDAR
+									 color); 
+	}
+}
+
 void pintar_LCD(t_pantalla nueva_pantalla)
 {
 	pantalla = nueva_pantalla;
@@ -704,11 +737,6 @@ void pintar_LCD(t_pantalla nueva_pantalla)
 // Main modificado (P6)
 int main (void) 
 { 
-	int i;													// variable de bucle para recorrer lidar_scan_360
-	uint16_t color;
-	uint8_t deteccion = 0;					// '1' => objeto detectado,  '0'=> sin detección
-	uint16_t distancia_minima;			// umbral de distancia de prueba
-	int angulo_deteccion = 0;				// usada solo si deteccion = 1
 	char texto[40];									// Notifica por pantalla si hay deteccion.
 	uint16_t V_pot, grados_pot, luz, p;// Lectura de tension en el potenciómetro y en el LDR
 	
@@ -752,17 +780,22 @@ int main (void)
     checkTouchPanel();
 		setBrillo(brilloDISP);
 		
-		if (brillo_auto)
+		if (brillo_auto)	
 		{
-			luz = (uint32_t)(canal_1 * 3300/4095); 	  						  // Conversion del valor digital leido del LDR a mV
-			p = (uint32_t)((luz - V_OSC) * 100 / (V_LUZ - V_OSC));	// Porcentaje de luminosidad en funcion de Luz
-			if (p < 20) p = 20;
-			if (p > 100) p = 100;
+			luz = (uint32_t)(canal_1 * 3300/4095); 	 // LDR en mV
+			if (luz < V_OSC)
+				p = 20;					// (luz - V_OSC) > 0
+			else
+			{
+				p = (uint32_t)((luz - V_OSC) * 100 / (V_LUZ - V_OSC));	// Porcentaje de luminosidad en funcion de Luz
+				if (p < 20)  p = 20;
+				if (p > 100) p = 100;
+			}
 			brilloDISP = p;
 		}
 		switch(pantalla)
 		{
-			case menu: /* Pantalla de Menú	*/
+			case menu: 			/* Pantalla de Menú	*/
 				if (zoneNewPressed(&zone_1))	pintar_LCD(principal);
 				if (zoneNewPressed(&zone_2)) 	pintar_LCD(LiDAR);
 				if (zoneNewPressed(&zone_3)) 	pintar_LCD(indicador);
@@ -819,34 +852,13 @@ int main (void)
 								(uint8_t*) porcentaje, White, Black);
 				break;
 			
-			/* Visualización de LiDAR*/
-			case LiDAR:
-				if (zoneNewPressed(&zone_10)) pintar_LCD(menu); // Cambio de pantalla
-				pintar_LCD(LiDAR); // Limpia pantalla y dibuja cuadro de MENU
-				deteccion = 0;
-				distancia_minima = 0xFFFF;
-				for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
-				{
-					if(!zona_valida(i))
-						color = Blue;				// Ignorar zona no valida
-					else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
-					{
-						color  = Red;				// Objeto cercano detectado
-						deteccion = 1;
-						if (lidar_scan_360[i] < distancia_minima)
-						{
-							distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
-							angulo_deteccion = i;										// Angulo de detección
-						}
-					}
-					else 
-						color = White;
-					
-					LCD_SetPoint(120 + (int)((lidar_scan_360[i] / 20.0f) * sin(i * PI / 180)),			// Mostrar por display el
-											 160 + (int)((lidar_scan_360[i] / 20.0f) * cos(i * PI / 180)), 			// entorno captado por LiDAR
-											 color); 
+			case LiDAR: 		/* Visualización de LiDAR*/
+				if (zoneNewPressed(&zone_10)){
+					pintar_LCD(menu); // Cambio de pantalla
+					break;						// Salir del case
 				}
-				
+				pintar_LCD(LiDAR); 	// Limpia pantalla y dibuja cuadro de MENU
+				analizar_LiDAR(1);	// Recorre scan_lidar_360, detecta objeto mas cercano y pinta puntos en el LCD
 				if(deteccion)
 				{
 					set_indicador_360(angulo_deteccion);			// Apuntar al objeto
@@ -860,7 +872,7 @@ int main (void)
 				}
 				break;
 				
-			case indicador:
+			case indicador: /* Elección de modo de indicador */
 				if (zoneNewPressed(&zone_10)) pintar_LCD(menu); // Cambio de pantalla
 				if (zoneNewPressed(&zone_1))	modo = 0;		// Modo indicador por potenciometro
 				if (zoneNewPressed(&zone_2))	modo = 1; 	// Modo indicador detección LiDAR
@@ -878,6 +890,7 @@ int main (void)
 				}
 				else 					// Modo indicador detección LiDAR
 				{
+					analizar_LiDAR(0);	// Deteccion de objetos sin pintar LiDAR en LCD
 					if(deteccion)
 					{
 						set_indicador_360(angulo_deteccion);			// Apuntar al objeto
@@ -887,7 +900,7 @@ int main (void)
 					else
 					{
 						set_indicador_360(0);											// En reposo
-						GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+						GUI_Text(0, 300, (uint8_t *)"Sin deteccion.           ", White, Black);
 					}
 					}
 				break;
