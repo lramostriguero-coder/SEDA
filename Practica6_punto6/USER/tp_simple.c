@@ -23,6 +23,9 @@ uint32_t cuentas[2];
 #define ZONAS 2			// Zona valida o no valida
 #define PI 3.14
 
+#define V_OSC 300 	// Medida con LDR a oscuras (mV)
+#define V_LUZ 3000 	// Medida con LDR con luz (mV)
+
 /* Estructura de zona inicial y zona final captadas por el LIDAR */
 struct t_zona
 {
@@ -98,10 +101,9 @@ typedef enum
 
 t_pantalla pantalla = menu; // Pantalla inicial
 
-uint32_t canal_0, canal_1;
+volatile uint32_t canal_0, canal_1;
 
-uint8_t nueva_muestra = 0, modo = 0, brillo_auto = 0; // Flags usados en main()
-//char texto[20]; // Cadena 
+uint8_t nueva_muestra = 0, modo = 0, brillo_auto = 1; // Flags usados en main()
 //================================================= FIN AÑADIDO (P6) ============================================================================
 
 /* Flag que indica si se detecta una pulsación válida */
@@ -142,11 +144,11 @@ t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial Rx LIDAR
 
 void init_ADC(void)
 {	
-	LPC_SC->PCONP|= (1<<12);                           // POwer ON
-	LPC_PINCON->PINSEL1|= ((1<<14)|(1<<16));            // (AD0.0 y AD0.1)  (P0.23 y P0.24)
-	LPC_PINCON->PINMODE1|= ((2<<14)|(2<<16));           // Deshabilita pullup/pulldown
-	LPC_SC->PCLKSEL0|= (0x00<<8);                      // CCLK/4 (Fpclk después del reset) (100 MHz/4 = 25MHz)
-	LPC_ADC->ADCR|=(1<<0)|(1<<1)                				// canales 0,1
+	LPC_SC->PCONP|= (1<<12);                          // POwer ON
+	LPC_PINCON->PINSEL1|= ((1<<14)|(1<<16));          // (AD0.0 y AD0.1)  (P0.23 y P0.24)
+	LPC_PINCON->PINMODE1|= ((2<<14)|(2<<16));         // Deshabilita pullup/pulldown
+	LPC_SC->PCLKSEL0|= (0x00<<8);                     // CCLK/4 (Fpclk después del reset) (100 MHz/4 = 25MHz)
+	LPC_ADC->ADCR|=(1<<0)|(1<<1)                			// canales 0,1
 											| (0x01<<8)                   // CLKDIV=1   (Fclk_ADC=25MHz /(1+1)= 12.5MHz)
 											| (0x01<<21);                 // PDN=1
 	// Ojo no se habilita el modo BURST en la inicialización  
@@ -159,13 +161,13 @@ void init_ADC(void)
 /* Timer 1 interrumpe cada 1/Fs */
 void TIMER1_IRQHandler(void)
 {	
-	LPC_TIM1->IR|=(1<<0);   // Borrar flag interrupción								
-	LPC_ADC->ADCR|=(1<<16); // BURST=1 --> Cada 65TclkADC se toma una muestra de cada canal comenzando 
-                          //             desde el más bajo (bit LSB de CR[0..7])
+	LPC_TIM1->IR = (1<<0);   	// Borrar flag interrupción								
+	LPC_ADC->ADCR |= (1<<16); // BURST=1 --> Cada 65TclkADC se toma una muestra de cada canal comenzando 
+														//             desde el más bajo (bit LSB de CR[0..7])
 }
 
 
-// Con la interrupción del PENÚLTIMO canal deshabilitamos la Ráfaga 
+// Con la interrupción del ÚLTIMO canal deshabilitamos la Ráfaga 
 // Ojo!!!! la conversión del siguiente canal (último) sigue en curso --> Ver Pag. 578 del manual
 void ADC_IRQHandler(void)
 {	
@@ -179,21 +181,18 @@ void ADC_IRQHandler(void)
 }
 
 
-/*  Timer 1 en modo Output Compare (reset T1TC on Match 0)
-	Counter clk: 25 MHz 	MAT1.0 : On match, Toggle pin/output (P1.29) para ver el instante de muestreo
+/*Timer 1 en modo Output Compare (reset T1TC on Match 0)
+	Counter clk: 25 MHz
   En cada Match interumpe, es decir con un periodo Ts= Fpclk/(MR1+1) y se habilita el modo Burst (Rafaga) 
-	para los canales 0, 2, 4. 
-	Habilitamos la salida (MAT0.1) para observar el instante en que se lanza la ráfaga 
-	(ojo!! con cada flanco de esta señal)*/
+	para los canales 0, 1.
+*/
 						
 void init_TIMER1(void)
 {
 	LPC_SC->PCONP|= (1<<2);                 	// TIMER1 power on
-	LPC_PINCON->PINSEL3 |= (3 << 12);					// P1.22 => MAT1.0
-	LPC_PINCON->PINMODE3 |= (1 << 13);				// MAT1.0 neither pull-up/down.
+	
 	LPC_TIM1->MCR = (3 << 0);              		// Interrupt on Match 0 and Reset TC
-	LPC_TIM1->MR0 = (Fpclk/2/F_muestreo)-1;	// Periodo de muestreo de TODAS las entradas!!!! 
-	LPC_TIM1->EMR |= (3 << 4);						 		// MAT1.0 toggle on match
+	LPC_TIM1->MR0 = (Fpclk/F_muestreo) - 1;	  // Periodo de muestreo de TODAS las entradas!!!! 
 	LPC_TIM1->TCR = 0x01;                  		// TC1 on
 		
 	NVIC_EnableIRQ(TIMER1_IRQn);            	// Hab. interrupción del TIMER1
@@ -687,6 +686,7 @@ void pintar_LCD(t_pantalla nueva_pantalla)
 			break;
 		
 		case LiDAR:
+			squareButton(&zone_10,"         MENU          ", White, Blue);
 			break;
 			
 		case indicador:
@@ -700,16 +700,17 @@ void pintar_LCD(t_pantalla nueva_pantalla)
 	}
 }
 // ======================================================== FIN AÑADIDO (P6) ================================================================================
+
 // Main modificado (P6)
 int main (void) 
 { 
-	int i;											// variable de bucle para recorrer lidar_scan_360
+	int i;													// variable de bucle para recorrer lidar_scan_360
 	uint16_t color;
-	uint8_t deteccion;					// '1' => objeto detectado,  '0'=> sin detección
-	uint16_t distancia_minima;	// umbral de distancia de prueba
-	int angulo_deteccion;				// usada solo si deteccion = 1
-	char texto[40];							// Notifica por pantalla si hay deteccion.
-	uint16_t V_pot, grados_pot, luz;				// Lectura de tension en el potenciómetro y en el LDR
+	uint8_t deteccion = 0;					// '1' => objeto detectado,  '0'=> sin detección
+	uint16_t distancia_minima;			// umbral de distancia de prueba
+	int angulo_deteccion = 0;				// usada solo si deteccion = 1
+	char texto[40];									// Notifica por pantalla si hay deteccion.
+	uint16_t V_pot, grados_pot, luz, p;// Lectura de tension en el potenciómetro y en el LDR
 	
 	configPWM();
   LCD_Initializtion();
@@ -751,17 +752,25 @@ int main (void)
     checkTouchPanel();
 		setBrillo(brilloDISP);
 		
+		if (brillo_auto)
+		{
+			luz = (uint32_t)(canal_1 * 3300/4095); 	  						  // Conversion del valor digital leido del LDR a mV
+			p = (uint32_t)((luz - V_OSC) * 100 / (V_LUZ - V_OSC));	// Porcentaje de luminosidad en funcion de Luz
+			if (p < 20) p = 20;
+			if (p > 100) p = 100;
+			brilloDISP = p;
+		}
 		switch(pantalla)
 		{
 			case menu: /* Pantalla de Menú	*/
-				if (zonePressed(&zone_1))	pintar_LCD(principal);
-				if (zonePressed(&zone_2)) pintar_LCD(LiDAR);
-				if (zonePressed(&zone_3)) pintar_LCD(indicador);
-				if (zonePressed(&zone_10)) pintar_LCD(menu);
+				if (zoneNewPressed(&zone_1))	pintar_LCD(principal);
+				if (zoneNewPressed(&zone_2)) 	pintar_LCD(LiDAR);
+				if (zoneNewPressed(&zone_3)) 	pintar_LCD(indicador);
+				if (zoneNewPressed(&zone_10)) pintar_LCD(menu);
 				break;
 			
 			case principal: /* Pantalla principal */
-				if (zonePressed(&zone_10))	pintar_LCD(menu);
+				if (zoneNewPressed(&zone_10))	pintar_LCD(menu); // Cambio de pantalla
 				if (zonePressed(&zone_1)){
 						angLIDAR = 0;}
 				if (zonePressed(&zone_2)){
@@ -769,12 +778,7 @@ int main (void)
 				if (zoneNewPressed(&zone_3)){
 						brilloDISP = 20;
 						brillo_auto = !brillo_auto;}
-				if (brillo_auto)
-				{
-						luz = (uint32_t)(canal_1 * 3300/4095); 	  // Conversion del valor digital leido del LDR a mV
-						brilloDISP = (uint32_t)(luz * 100/3300);	// Porcentaje de luminosidad en funcion de Luz
-				}
-				else
+				if (!brillo_auto)
 				{
 					if (zonePressed(&zone_8)){
 						(brilloDISP < 100) ? brilloDISP = brilloDISP + 1 : brilloDISP;
@@ -786,7 +790,6 @@ int main (void)
 								brilloDISP = brilloDISP - 1;}
 					}
 				}
-				
 				if (zoneNewPressed(&zone_4)){
 						(angLIDAR == 360) ? angLIDAR = 360 : angLIDAR ++; 
 				}
@@ -818,8 +821,8 @@ int main (void)
 			
 			/* Visualización de LiDAR*/
 			case LiDAR:
-				if (zonePressed(&zone_10)) pintar_LCD(menu);
-				//LCD_Clear(Black);
+				if (zoneNewPressed(&zone_10)) pintar_LCD(menu); // Cambio de pantalla
+				pintar_LCD(LiDAR); // Limpia pantalla y dibuja cuadro de MENU
 				deteccion = 0;
 				distancia_minima = 0xFFFF;
 				for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
@@ -839,9 +842,9 @@ int main (void)
 					else 
 						color = White;
 					
-					LCD_SetPoint(120+(int)((lidar_scan_360[i]/20.0f)*sin(i*PI/180)),			// Mostrar por display 
-											160+(int)((lidar_scan_360[i]/20.0f)*cos(i*PI/180)), 			// entorno captado por LiDAR
-											color); 
+					LCD_SetPoint(120 + (int)((lidar_scan_360[i] / 20.0f) * sin(i * PI / 180)),			// Mostrar por display el
+											 160 + (int)((lidar_scan_360[i] / 20.0f) * cos(i * PI / 180)), 			// entorno captado por LiDAR
+											 color); 
 				}
 				
 				if(deteccion)
@@ -858,18 +861,18 @@ int main (void)
 				break;
 				
 			case indicador:
-				if (zonePressed(&zone_10)) pintar_LCD(menu);
-				if (zonePressed(&zone_1))	modo = 0;		// Modo indicador de luminosidad
-				if (zonePressed(&zone_2))	modo = 1; 	// Modo indicador detección LiDAR
+				if (zoneNewPressed(&zone_10)) pintar_LCD(menu); // Cambio de pantalla
+				if (zoneNewPressed(&zone_1))	modo = 0;		// Modo indicador por potenciometro
+				if (zoneNewPressed(&zone_2))	modo = 1; 	// Modo indicador detección LiDAR
 
-				if (!modo)		// Modo indicador de luminosidad
+				if (!modo)		// Modo indicador por potenciometro
 				{
 					if (nueva_muestra)
 					{
 						nueva_muestra = 0;			// Borrar flag de muestra
 						
-						V_pot = (uint32_t)(canal_0 * 3300/4095);		// Conversion del valor digital leido a mV
-						grados_pot =	(uint32_t)((V_pot * 360)/3300);			// Conversion de mV a grados
+						V_pot = (uint32_t)(canal_0 * 3300/4095);			// Conversion del valor digital leido a mV
+						grados_pot =	(uint32_t)((V_pot * 360)/3300);	// Conversion de mV a grados
 						set_indicador_360(grados_pot);
 					}
 				}

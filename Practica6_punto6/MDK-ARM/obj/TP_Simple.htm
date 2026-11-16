@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\obj\TP_Simple.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\obj\TP_Simple.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Mon Nov 16 14:39:25 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Mon Nov 16 16:23:33 2026
 <BR><P>
 <H3>Maximum Stack Usage =        636 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -621,7 +621,7 @@ Global Symbols
 <P><STRONG><a name="[25]"></a>ADC_IRQHandler</STRONG> (Thumb, 44 bytes, Stack size 0 bytes, tp_simple.o(.text))
 <BR>[Address Reference Count : 1]<UL><LI> startup_lpc17xx.o(RESET)
 </UL>
-<P><STRONG><a name="[78]"></a>init_TIMER1</STRONG> (Thumb, 80 bytes, Stack size 8 bytes, tp_simple.o(.text))
+<P><STRONG><a name="[78]"></a>init_TIMER1</STRONG> (Thumb, 48 bytes, Stack size 8 bytes, tp_simple.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = init_TIMER1 &rArr; NVIC_SetPriority
 </UL>
 <BR>[Calls]<UL><LI><a href="#[76]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;NVIC_EnableIRQ
@@ -669,7 +669,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[82]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;maquina_estados_lidar
 </UL>
 
-<P><STRONG><a name="[82]"></a>maquina_estados_lidar</STRONG> (Thumb, 296 bytes, Stack size 8 bytes, tp_simple.o(.text))
+<P><STRONG><a name="[82]"></a>maquina_estados_lidar</STRONG> (Thumb, 300 bytes, Stack size 8 bytes, tp_simple.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 64<LI>Call Chain = maquina_estados_lidar &rArr; extraer_muestras &rArr; __aeabi_fmul
 </UL>
 <BR>[Calls]<UL><LI><a href="#[83]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Camsense_Checksum
@@ -715,7 +715,7 @@ Global Symbols
 <LI><a href="#[8d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;drawAdd
 </UL>
 
-<P><STRONG><a name="[8d]"></a>drawAdd</STRONG> (Thumb, 506 bytes, Stack size 32 bytes, tp_simple.o(.text))
+<P><STRONG><a name="[8d]"></a>drawAdd</STRONG> (Thumb, 504 bytes, Stack size 32 bytes, tp_simple.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 124<LI>Call Chain = drawAdd &rArr; drawMinus &rArr; LCD_DrawLine &rArr; LCD_SetPoint
 </UL>
 <BR>[Calls]<UL><LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;drawMinus
@@ -772,7 +772,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[4e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[4e]"></a>main</STRONG> (Thumb, 2078 bytes, Stack size 104 bytes, tp_simple.o(.text))
+<P><STRONG><a name="[4e]"></a>main</STRONG> (Thumb, 2076 bytes, Stack size 104 bytes, tp_simple.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 636 + Unknown Stack Size
 <LI>Call Chain = main &rArr; maquina_de_estados &rArr; __0sscanf &rArr; __vfscanf_char &rArr; __vfscanf &rArr; _scanf_real &rArr; _scanf_really_real &rArr; _fp_value &rArr; _btod_etento &rArr; _btod_emul &rArr; _e2e
 </UL>
