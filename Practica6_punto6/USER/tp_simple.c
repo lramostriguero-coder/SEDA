@@ -1,3 +1,7 @@
+/*
+Inclusion de la Práctica 6 en el proyecto.
+*/
+
 #include <LPC17xx.H>
 #include <glcd.h>
 #include <TouchPanel.h>
@@ -8,6 +12,7 @@
 
 #define Fpclk 25e6	// Fcpu/4 (defecto después del reset)
 #define Fpwm 2e3		// Frecuencia de la señal PWM (brillo LCD)
+#define F_muestreo 50 	 // Fs=50Hz (Cada 20 ms se toma una muestra del canal 0 y 1)
 
 #define T_pwm 15e-3	// Periodo de la PWM generada por TIMER 0 (servos)
 #define Tmin 0.5e-3	
@@ -40,15 +45,21 @@ struct t_screenZone
 };
 
 /* Definicion de las diferentes zonas de la pantalla */
-struct t_screenZone zone_1 = { 20,  14, 200,  50, 0}; /*  Visualizacion anguloLIDAR			 */
-struct t_screenZone zone_2 = { 20, 116, 200,  50, 0}; /*  Visualizacion umbralDistancia  */
-struct t_screenZone zone_3 = { 20, 218, 200, 50, 0}; 	/*  Visualizacion brilloDisplay		 */
-struct t_screenZone zone_4 = { 55, 72,  30,  30, 0}; 	/* 				Botón  Aumentar    			 */
-struct t_screenZone zone_5 = {155, 72,  30,  30, 0}; 	/* 				Botón  Disminuir   			 */
-struct t_screenZone zone_6 = { 55, 174,  30,  30, 0}; /* 				Botón  Aumentar    			 */
-struct t_screenZone zone_7 = {155, 174,  30,  30, 0}; /* 				Botón  Disminuir  			 */
-struct t_screenZone zone_8 = { 55, 276,  30,  30, 0}; /* 				Botón  Aumentar    			 */
-struct t_screenZone zone_9 = {155, 276,  30,  30, 0}; /* 				Botón  Disminuir   			 */
+/* Definicion de las diferentes zonas de la pantalla (Pantalla de 240 x 320 px) */
+struct t_screenZone zone_10 = { 20,   4, 200,  36, 0}; /* Botón Menú superior                 */
+
+struct t_screenZone zone_1  = { 20,  52, 200,  38, 0}; /* Visualizacion anguloLIDAR           */
+struct t_screenZone zone_4  = { 55,  94,  30,  30, 0}; /* Botón Aumentar 1                    */
+struct t_screenZone zone_5  = {155,  94,  30,  30, 0}; /* Botón Disminuir 1                   */
+
+struct t_screenZone zone_2  = { 20, 144, 200,  38, 0}; /* Visualizacion umbralDistancia       */
+struct t_screenZone zone_6  = { 55, 186,  30,  30, 0}; /* Botón Aumentar 2                    */
+struct t_screenZone zone_7  = {155, 186,  30,  30, 0}; /* Botón Disminuir 2                   */
+
+struct t_screenZone zone_3  = { 20, 236, 200,  38, 0}; /* Visualizacion brilloDisplay         */
+struct t_screenZone zone_8  = { 55, 278,  30,  30, 0}; /* Botón Aumentar 3                    */
+struct t_screenZone zone_9  = {155, 278,  30,  30, 0}; /* Botón Disminuir 3										*/
+
 
 
 /* Estados para comandos por Terminal */
@@ -76,6 +87,22 @@ typedef enum
 	recibiendo_datos
 } t_estado_LIDAR;
 
+//================================================== AÑADIDO (P6) =============================================================================
+typedef enum
+{
+	menu,					// pantalla de menu
+	principal,		// pantalla principal 
+	LiDAR,				// dibujar entorno lidar
+	indicador,		// servos controlados por potenciometro o LiDAR
+} t_pantalla;
+
+t_pantalla pantalla = menu; // Pantalla inicial
+
+uint32_t canal_0, canal_1;
+
+uint8_t nueva_muestra = 0, modo = 0, brillo_auto = 0; // Flags usados en main()
+//char texto[20]; // Cadena 
+//================================================= FIN AÑADIDO (P6) ============================================================================
 
 /* Flag que indica si se detecta una pulsación válida */
 uint8_t pressedTouchPanel = 0;
@@ -109,6 +136,70 @@ uint8_t indice_trama = 0;					// Numero de byte de la trama
 uint16_t lidar_scan_360[360];			// Array para almacenar medidas de distancia
 	
 t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial Rx LIDAR
+
+
+//================================================== AÑADIDO (P6) =============================================================================
+
+void init_ADC(void)
+{	
+	LPC_SC->PCONP|= (1<<12);                           // POwer ON
+	LPC_PINCON->PINSEL1|= ((1<<14)|(1<<16));            // (AD0.0 y AD0.1)  (P0.23 y P0.24)
+	LPC_PINCON->PINMODE1|= ((2<<14)|(2<<16));           // Deshabilita pullup/pulldown
+	LPC_SC->PCLKSEL0|= (0x00<<8);                      // CCLK/4 (Fpclk después del reset) (100 MHz/4 = 25MHz)
+	LPC_ADC->ADCR|=(1<<0)|(1<<1)                				// canales 0,1
+											| (0x01<<8)                   // CLKDIV=1   (Fclk_ADC=25MHz /(1+1)= 12.5MHz)
+											| (0x01<<21);                 // PDN=1
+	// Ojo no se habilita el modo BURST en la inicialización  
+	LPC_ADC->ADINTEN=(1<<1);					// Hab. interrupción fin de conversión del ÚLTIMO canal(canal 1)
+	NVIC_EnableIRQ(ADC_IRQn);					// Hab. interrupción del ADC
+	NVIC_SetPriority(ADC_IRQn,1);	    // ISR del ADC prioridad 1
+}	
+
+
+/* Timer 1 interrumpe cada 1/Fs */
+void TIMER1_IRQHandler(void)
+{	
+	LPC_TIM1->IR|=(1<<0);   // Borrar flag interrupción								
+	LPC_ADC->ADCR|=(1<<16); // BURST=1 --> Cada 65TclkADC se toma una muestra de cada canal comenzando 
+                          //             desde el más bajo (bit LSB de CR[0..7])
+}
+
+
+// Con la interrupción del PENÚLTIMO canal deshabilitamos la Ráfaga 
+// Ojo!!!! la conversión del siguiente canal (último) sigue en curso --> Ver Pag. 578 del manual
+void ADC_IRQHandler(void)
+{	
+	LPC_ADC->ADCR&=~(1<<16); // BURST=0     // Deshabilitamos el modo Ráfaga 
+																					// (ojo continua la conversión del siguiente canal) 
+	
+	//Almacenamos las muestras a modo de ejemplo
+	canal_0= ((LPC_ADC->ADDR0 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR0
+	canal_1= ((LPC_ADC->ADDR1 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR1
+	nueva_muestra = 1;
+}
+
+
+/*  Timer 1 en modo Output Compare (reset T1TC on Match 0)
+	Counter clk: 25 MHz 	MAT1.0 : On match, Toggle pin/output (P1.29) para ver el instante de muestreo
+  En cada Match interumpe, es decir con un periodo Ts= Fpclk/(MR1+1) y se habilita el modo Burst (Rafaga) 
+	para los canales 0, 2, 4. 
+	Habilitamos la salida (MAT0.1) para observar el instante en que se lanza la ráfaga 
+	(ojo!! con cada flanco de esta señal)*/
+						
+void init_TIMER1(void)
+{
+	LPC_SC->PCONP|= (1<<2);                 	// TIMER1 power on
+	LPC_PINCON->PINSEL3 |= (3 << 12);					// P1.22 => MAT1.0
+	LPC_PINCON->PINMODE3 |= (1 << 13);				// MAT1.0 neither pull-up/down.
+	LPC_TIM1->MCR = (3 << 0);              		// Interrupt on Match 0 and Reset TC
+	LPC_TIM1->MR0 = (Fpclk/2/F_muestreo)-1;	// Periodo de muestreo de TODAS las entradas!!!! 
+	LPC_TIM1->EMR |= (3 << 4);						 		// MAT1.0 toggle on match
+	LPC_TIM1->TCR = 0x01;                  		// TC1 on
+		
+	NVIC_EnableIRQ(TIMER1_IRQn);            	// Hab. interrupción del TIMER1
+	NVIC_SetPriority(TIMER1_IRQn,2);        	// ISR del TIMER1 con prioridad 2
+}	
+//================================================= FIN AÑADIDO (P6) ============================================================================
 
 
 /* Configuración TIMER0 para generar señal PWM por MAT0.0 y MAT0.1 */
@@ -457,6 +548,7 @@ void drawAdd(struct t_screenZone* zone, uint16_t lineColor)
 *******************************************************************************/
 void screenMain(void)
 {	
+	 squareButton(&zone_10,"          MENU          ", White, Blue);	
 	 squareButton(&zone_1, "Lidar:         grados   ", White, Blue);
 	 squareButton(&zone_2, "Distancia:          cm  ", White, Blue);
 	 squareButton(&zone_3, "Brillo:             %   ", White, Blue);
@@ -504,6 +596,7 @@ void checkTouchPanel(void)
 		 zone_7.pressed = 1;
 		 zone_8.pressed = 1;
 		 zone_9.pressed = 1;
+		 zone_10.pressed = 1;
      
    }  
 }
@@ -574,8 +667,40 @@ void setBrillo(float brilloDISP)
    LPC_PWM1->LER|=(1<<6)|(1<<0);
 }
 
-
-
+// ======================================================== AÑADIDO (P6) ================================================================================
+void pintar_LCD(t_pantalla nueva_pantalla)
+{
+	pantalla = nueva_pantalla;
+	LCD_Clear(Black);
+	
+	switch(pantalla)
+	{
+		case menu:
+			squareButton(&zone_10,"         MENU          ", White, Blue);
+			squareButton(&zone_1, "Pantalla principal     ", White, Blue);
+			squareButton(&zone_2, "Visulizacion de LiDAR  ", White, Blue);
+			squareButton(&zone_3, "Modo indicador         ", White, Blue);
+			break;
+		
+		case principal:
+			screenMain();
+			break;
+		
+		case LiDAR:
+			break;
+			
+		case indicador:
+			squareButton(&zone_10,"          MENU         ", White, Blue);
+			squareButton(&zone_1, "Indicador potenciometro", White, Blue);
+			squareButton(&zone_2, "Indicador de LiDAR     ", White, Blue);
+			break;
+		default:
+			break;
+	
+	}
+}
+// ======================================================== FIN AÑADIDO (P6) ================================================================================
+// Main modificado (P6)
 int main (void) 
 { 
 	int i;											// variable de bucle para recorrer lidar_scan_360
@@ -584,6 +709,7 @@ int main (void)
 	uint16_t distancia_minima;	// umbral de distancia de prueba
 	int angulo_deteccion;				// usada solo si deteccion = 1
 	char texto[40];							// Notifica por pantalla si hay deteccion.
+	uint16_t V_pot, grados_pot, luz;				// Lectura de tension en el potenciómetro y en el LDR
 	
 	configPWM();
   LCD_Initializtion();
@@ -591,7 +717,8 @@ int main (void)
   TP_Init(); 
   //TouchPanel_Calibrate(); /* Configurar "matrix" y comentar para eliminar la calibración */
   
-  // screenMain(); 					/* Comentar para ver salida LiDAR */
+  //screenMain(); 					/* Comentar para ver salida LiDAR */
+	pintar_LCD(menu);
 	
 	/* UART0 y 3 (Comandos por Terminal y Rx datos LIDAR) */
   ptr_rx=buffer;	    		  // Inicializa el puntero de recepción al comienzo del buffer
@@ -612,49 +739,160 @@ int main (void)
 	
   tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
   estado = enviando_msj_inicial;
+	
+	// AÑADIDO P6
+	NVIC_SetPriorityGrouping(2);
+	init_ADC();
+	init_TIMER1();
+	//
 
 	while(1){
 		maquina_de_estados();
-    //checkTouchPanel();
+    checkTouchPanel();
 		setBrillo(brilloDISP);
-		 
-		LCD_Clear(Black);
-		deteccion = 0;
-		distancia_minima = 0xFFFF;
-		for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
-		{
-			if(!zona_valida(i))
-				color = Blue;				// Ignorar zona no valida
-			else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
-			{
-				color  = Red;				// Objeto cercano detectado
-				deteccion = 1;
-				if (lidar_scan_360[i] < distancia_minima)
-				{
-					distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
-					angulo_deteccion = i;										// Angulo de detección
-				}
-			}
-			else 
-				color = White;
-			
-			LCD_SetPoint(120+(int)((lidar_scan_360[i]/20.0f)*sin(i*PI/180)),			// Mostrar por display 
-							     160+(int)((lidar_scan_360[i]/20.0f)*cos(i*PI/180)), 			// entorno captado por LiDAR
-									 color); 
-		}
 		
-		if(deteccion)
+		switch(pantalla)
 		{
-			set_indicador_360(angulo_deteccion);			// Apuntar al objeto
-			sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
-			GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+			case menu: /* Pantalla de Menú	*/
+				if (zonePressed(&zone_1))	pintar_LCD(principal);
+				if (zonePressed(&zone_2)) pintar_LCD(LiDAR);
+				if (zonePressed(&zone_3)) pintar_LCD(indicador);
+				if (zonePressed(&zone_10)) pintar_LCD(menu);
+				break;
+			
+			case principal: /* Pantalla principal */
+				if (zonePressed(&zone_10))	pintar_LCD(menu);
+				if (zonePressed(&zone_1)){
+						angLIDAR = 0;}
+				if (zonePressed(&zone_2)){
+						umbDISTANCIA = 0;}
+				if (zoneNewPressed(&zone_3)){
+						brilloDISP = 20;
+						brillo_auto = !brillo_auto;}
+				if (brillo_auto)
+				{
+						luz = (uint32_t)(canal_1 * 3300/4095); 	  // Conversion del valor digital leido del LDR a mV
+						brilloDISP = (uint32_t)(luz * 100/3300);	// Porcentaje de luminosidad en funcion de Luz
+				}
+				else
+				{
+					if (zonePressed(&zone_8)){
+						(brilloDISP < 100) ? brilloDISP = brilloDISP + 1 : brilloDISP;
+					}
+					if (zonePressed(&zone_9)){
+						if(brilloDISP == 20) { 						// Brillo incial 20% para observar mejor el cambio del brillo
+								brilloDISP = 20;} 
+						else { 
+								brilloDISP = brilloDISP - 1;}
+					}
+				}
+				
+				if (zoneNewPressed(&zone_4)){
+						(angLIDAR == 360) ? angLIDAR = 360 : angLIDAR ++; 
+				}
+				if (zoneNewPressed(&zone_5)){
+						(angLIDAR == 0) ? angLIDAR = 0 : angLIDAR --; 
+				}
+				if (zoneNewPressed(&zone_6)){
+						umbDISTANCIA = umbDISTANCIA + 0.1;
+				}
+				if (zoneNewPressed(&zone_7)){
+					if (umbDISTANCIA <= 0.1) {
+							umbDISTANCIA = 0;}
+					else {
+							umbDISTANCIA = umbDISTANCIA - 0.1;}
+				}
+
+		
+				sprintf(grado, "%4d", angLIDAR);
+				sprintf(cm,"%5.1f", umbDISTANCIA);
+				sprintf(porcentaje, "%3d", brilloDISP);
+				
+				GUI_Text(zone_1.x + zone_1.size_x/2 - (strlen(grado)/2)*8, zone_1.y + zone_1.size_y/2 - 8,
+								(uint8_t*) grado, White, Black);	
+				GUI_Text(zone_2.x + zone_2.size_x/2 - (strlen(cm)/2)*8, zone_2.y + zone_2.size_y/2 - 8,
+								(uint8_t*) cm, White, Black);	
+				GUI_Text(zone_3.x + zone_3.size_x/2 - (strlen(porcentaje)/2)*8, zone_3.y + zone_3.size_y/2 - 8,
+								(uint8_t*) porcentaje, White, Black);
+				break;
+			
+			/* Visualización de LiDAR*/
+			case LiDAR:
+				if (zonePressed(&zone_10)) pintar_LCD(menu);
+				//LCD_Clear(Black);
+				deteccion = 0;
+				distancia_minima = 0xFFFF;
+				for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
+				{
+					if(!zona_valida(i))
+						color = Blue;				// Ignorar zona no valida
+					else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
+					{
+						color  = Red;				// Objeto cercano detectado
+						deteccion = 1;
+						if (lidar_scan_360[i] < distancia_minima)
+						{
+							distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
+							angulo_deteccion = i;										// Angulo de detección
+						}
+					}
+					else 
+						color = White;
+					
+					LCD_SetPoint(120+(int)((lidar_scan_360[i]/20.0f)*sin(i*PI/180)),			// Mostrar por display 
+											160+(int)((lidar_scan_360[i]/20.0f)*cos(i*PI/180)), 			// entorno captado por LiDAR
+											color); 
+				}
+				
+				if(deteccion)
+				{
+					set_indicador_360(angulo_deteccion);			// Apuntar al objeto
+					sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
+					GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+				}
+				else
+				{
+					set_indicador_360(0);											// En reposo
+					GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+				}
+				break;
+				
+			case indicador:
+				if (zonePressed(&zone_10)) pintar_LCD(menu);
+				if (zonePressed(&zone_1))	modo = 0;		// Modo indicador de luminosidad
+				if (zonePressed(&zone_2))	modo = 1; 	// Modo indicador detección LiDAR
+
+				if (!modo)		// Modo indicador de luminosidad
+				{
+					if (nueva_muestra)
+					{
+						nueva_muestra = 0;			// Borrar flag de muestra
+						
+						V_pot = (uint32_t)(canal_0 * 3300/4095);		// Conversion del valor digital leido a mV
+						grados_pot =	(uint32_t)((V_pot * 360)/3300);			// Conversion de mV a grados
+						set_indicador_360(grados_pot);
+					}
+				}
+				else 					// Modo indicador detección LiDAR
+				{
+					if(deteccion)
+					{
+						set_indicador_360(angulo_deteccion);			// Apuntar al objeto
+						sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
+						GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+					}
+					else
+					{
+						set_indicador_360(0);											// En reposo
+						GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+					}
+					}
+				break;
+			
+			default:
+				break;
+			}
 		}
-		else
-		{
-			set_indicador_360(0);											// En reposo
-			GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
-		}
-			 
-	}   
+ 
 }
 
