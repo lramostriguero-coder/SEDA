@@ -803,7 +803,10 @@ int main (void)
 				break;
 			
 			case principal: /* Pantalla principal */
-				if (zoneNewPressed(&zone_10))	pintar_LCD(menu); // Cambio de pantalla
+				if (zoneNewPressed(&zone_10)) {	
+					pintar_LCD(menu); // Cambio de pantalla
+					break;						// Salir del case
+				}
 				if (zonePressed(&zone_1)){
 						angLIDAR = 0;}
 				if (zonePressed(&zone_2)){
@@ -852,7 +855,7 @@ int main (void)
 								(uint8_t*) porcentaje, White, Black);
 				break;
 			
-			case LiDAR: 		/* Visualización de LiDAR*/
+			case LiDAR: 	/* Visualización de LiDAR*/
 				if (zoneNewPressed(&zone_10)){
 					pintar_LCD(menu); // Cambio de pantalla
 					break;						// Salir del case
@@ -868,13 +871,16 @@ int main (void)
 				else
 				{
 					set_indicador_360(0);											// En reposo
-					GUI_Text(0, 300, (uint8_t *)"Sin deteccion.", White, Black);
+					GUI_Text(0, 300, (uint8_t *)"Sin deteccion.           ", White, Black);
 				}
 				break;
 				
 			case indicador: /* Elección de modo de indicador */
 				if (zoneNewPressed(&zone_10)) pintar_LCD(menu); // Cambio de pantalla
-				if (zoneNewPressed(&zone_1))	modo = 0;		// Modo indicador por potenciometro
+				if (zoneNewPressed(&zone_1)){
+					modo = 0;		// Modo indicador por potenciometro
+					GUI_Text(0, 300, (uint8_t *)"                         ", White, Black);  // Limpiar texto de indicador LiDAR
+				}
 				if (zoneNewPressed(&zone_2))	modo = 1; 	// Modo indicador detección LiDAR
 
 				if (!modo)		// Modo indicador por potenciometro
