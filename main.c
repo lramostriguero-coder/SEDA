@@ -16,8 +16,8 @@ typedef  enum audio
 
 t_audio audio = idle;
 
-volatile uint8_t muestras_voz[16000];	// Variable para almacenar audio
-volatile uint8_t canal_0;
+volatile uint8_t muestras_voz[N_muestras];	// Variable para almacenar audio
+volatile uint8_t canal_5;
 uint8_t fin_grabacion = 0;		// Semaforo
 
 // Timer 1 interrumpe periódicamente a F_sample = 8000 Hz !!!!
@@ -25,22 +25,13 @@ uint8_t fin_grabacion = 0;		// Semaforo
 void TIMER1_IRQHandler(void)
 {
 	static uint16_t indice_muestra;
-	LPC_TIM1->IR|= (1<<0); 													// Borrar flag
+	LPC_TIM1->IR|= (1<<0); 								// Borrar flag
 	
 	switch(audio){
 		case idle:
 			break;
 		case grabando:
-			if (indice_muestra >= 16000)
-			{
-				LPC_ADC->ADCR &= (3 << 24);			// Stop conversion	
-				audio = idle;
-				indice_muestra = 0;							// Incializar indice
-				fin_grabacion = 1;							// Semaforo
-			}
-			else
-				muestras_voz[indice_muestra++] = canal_0;		// Guardar muestra en array
-			
+			LPC_ADC->ADCR |= (1 << 24);	// START = 001
 			break;
 		case reproduciendo:
 			LPC_DAC->DACR= muestras_voz[indice_muestra++]<<8; // 8 bits!!!!
@@ -59,12 +50,18 @@ void TIMER1_IRQHandler(void)
 
 void init_ADC (void)
 {
-	LPC_SC->PCONP |= (1 << 12);			// Power ON ADC
+	LPC_SC->PCONP |= (1 << 12);							// Power ON ADC
+	LPC_PINCON->PINSEL3 &= ~(3 << 30);			// P1.31 => AD0.5
+	LPC_PINCON->PINMODE3 |= (1 << 31);			// P1.31 neither pull up/down
+	LPC_SC->PCLKSEL0 |= (0x00 << 8);
 	
-	LPC_ADC->ADCR |= (1 << 0)|			// Selecciona AD0.0	(modificar a AD0.5)
+	LPC_ADC->ADCR |= (1 << 5)|			// Selecciona AD0.0	(modificar a AD0.5)
 									 (1 << 8)|			// CLKDIV = 1 -> Fclk_adc = 12.5MHz
 									 (1 << 21);			// PDN= 1
-	LPC_ADC->ADINTEN |= (1 << 0);		// Interrumpe canal 0
+	LPC_ADC->ADINTEN |= (1 << 5);		// Interrumpe canal 5
+	
+	NVIC_EnableIRQ(ADC_IRQn);
+	NVIC_SetPriority(ADC_IRQn, 1);
 	
 }
 
@@ -106,8 +103,17 @@ NVIC_EnableIRQ(EINT2_IRQn); 				// sin CMSIS: NVIC->ISER[0]=(1<<22);
 }
 
 void ADC_IRQHandler (void)
-{	
-	canal_0 = (uint32_t)((LPC_ADC->ADDR0 >> 6)*0xFF);	 // Guardar 8 bits de mayor peso 
+{	static uint16_t indice_grab;
+	LPC_ADC-> ADCR &= ~(7<<24);		// START = 000, Stop conversion
+	muestras_voz[indice_grab++] = ((LPC_ADC->ADDR5 >> 8)&0xFF);		// 8 bits de mayor peso
+	
+	if (indice_grab == N_muestras)
+	{
+		LPC_TIM1->TCR = 0x02; // Stop y reste timer
+		audio = idle;
+		indice_grab = 0;
+		fin_grabacion = 1;		// Semaforo
+	}
 }
 
 /* Al pulsar KEY1 en Mini-DK2 se reproduce el audio */
