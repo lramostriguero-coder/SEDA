@@ -51,14 +51,14 @@ void TIMER1_IRQHandler(void)
 void init_ADC (void)
 {
 	LPC_SC->PCONP |= (1 << 12);							// Power ON ADC
-	LPC_PINCON->PINSEL3 &= ~(3 << 30);			// P1.31 => AD0.5
-	LPC_PINCON->PINMODE3 |= (1 << 31);			// P1.31 neither pull up/down
+	LPC_PINCON->PINSEL3 |= (3 << 30);			// P1.31 => AD0.5
+	LPC_PINCON->PINMODE3 = (2 << 30);			// P1.31 neither pull up/down
 	LPC_SC->PCLKSEL0 |= (0x00 << 8);
 	
-	LPC_ADC->ADCR |= (1 << 5)|			// Selecciona AD0.0	(modificar a AD0.5)
+	LPC_ADC->ADCR = (1 << 5)|			// Selecciona AD0.5
 									 (1 << 8)|			// CLKDIV = 1 -> Fclk_adc = 12.5MHz
 									 (1 << 21);			// PDN= 1
-	LPC_ADC->ADINTEN |= (1 << 5);		// Interrumpe canal 5
+	LPC_ADC->ADINTEN = (1 << 5);		// Interrumpe canal 5
 	
 	NVIC_EnableIRQ(ADC_IRQn);
 	NVIC_SetPriority(ADC_IRQn, 1);
@@ -104,12 +104,12 @@ NVIC_EnableIRQ(EINT2_IRQn); 				// sin CMSIS: NVIC->ISER[0]=(1<<22);
 
 void ADC_IRQHandler (void)
 {	static uint16_t indice_grab;
-	LPC_ADC-> ADCR &= ~(7<<24);		// START = 000, Stop conversion
+	LPC_ADC-> ADCR &= ~(7 << 24);		// START = 000, Stop conversion
 	muestras_voz[indice_grab++] = ((LPC_ADC->ADDR5 >> 8)&0xFF);		// 8 bits de mayor peso
 	
 	if (indice_grab == N_muestras)
 	{
-		LPC_TIM1->TCR = 0x02; // Stop y reste timer
+		LPC_TIM1->TCR = 0x02; // Stop y reset timer
 		audio = idle;
 		indice_grab = 0;
 		fin_grabacion = 1;		// Semaforo
@@ -127,7 +127,7 @@ void EINT1_IRQHandler()
 /* Al pulsar KEY2 en Mini-DK2 se muestrea el audio */
 void EINT2_IRQHandler()
 {
-	LPC_SC->EXTINT=(1<<1); // Borrar flag Externa 1
+	LPC_SC->EXTINT=(1<<2); // Borrar flag Externa 1
 	audio = grabando;			 
 	LPC_TIM1->TCR=0x01;		 // Start Timer .
 }
@@ -136,6 +136,7 @@ int main(void)
 	NVIC_SetPriorityGrouping(2);
 	init_Externas();
 	init_DAC();
+	init_ADC();
 	init_TIMER1();
 	LPC_TIM1->TCR=0x01;		//Start Timer .
 	while(1);
