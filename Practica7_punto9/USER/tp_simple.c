@@ -188,9 +188,9 @@ void init_ADC_audio (void)
 void TIMER1_IRQHandler(void)
 {	
 	LPC_TIM1->IR = (1<<0);   	// Borrar flag interrupción								
-	if(audio !=  grabando && reproduciendo)
+	if(audio !=  grabando && !fin_grabacion)
 		LPC_ADC->ADCR |= (1<<16); // BURST=1 --> Cada 65TclkADC se toma una muestra de cada canal comenzando 
-														//             desde el más bajo (bit LSB de CR[0..7])
+															//             desde el más bajo (bit LSB de CR[0..7])
 }
 
 
@@ -207,7 +207,7 @@ void ADC_IRQHandler(void)
 		
 		if (indice_grab == N_muestras)
 		{
-			LPC_TIM1->TCR = 0x02; // Stop y reset timer
+			LPC_TIM2->TCR = 0x02; // Stop y reset timer
 			audio = idle;					
 			indice_grab = 0;
 			fin_grabacion = 1;		// Semaforo
@@ -234,10 +234,10 @@ void init_DAC(void)
 void init_TIMER2(void)
 {
 	  LPC_SC->PCONP|=(1<<22);								// 	
-    LPC_TIM1->PR = 0x00;     	 						// 
-    LPC_TIM1->MCR = 0x03;									// Reset TC on Match, and Interrupt!  
-    LPC_TIM1->MR0 = (Fpclk/F_sample)-1;  // El timer 2 interrumpe cada 125 us 
-    LPC_TIM1->TCR = 0x02;									// Timer STOP y RESET
+    LPC_TIM2->PR = 0x00;     	 						// 
+    LPC_TIM2->MCR = 0x03;									// Reset TC on Match, and Interrupt!  
+    LPC_TIM2->MR0 = (Fpclk/F_sample)-1;  // El timer 2 interrumpe cada 125 us 
+    LPC_TIM2->TCR = 0x02;									// Timer STOP y RESET
 	
     NVIC_EnableIRQ(TIMER2_IRQn);					//
 	  NVIC_SetPriority(TIMER2_IRQn,0);  		// Prioridad Máxima     
@@ -248,7 +248,7 @@ void init_TIMER2(void)
 void TIMER2_IRQHandler(void)
 {
 	static uint16_t indice_muestra;
-	LPC_TIM1->IR|= (1<<0); 								// Borrar flag
+	LPC_TIM2->IR|= (1<<0); 								// Borrar flag
 	
 	switch(audio){
 		case idle:
@@ -262,7 +262,7 @@ void TIMER2_IRQHandler(void)
 			{
 				audio = idle;					// Reposo
 				indice_muestra = 0;
-				LPC_TIM1->TCR = 0x02;	//Stop Timer and reset, DAC= 0V.
+				LPC_TIM2->TCR = 0x02;	//Stop Timer and reset, DAC= 0V.
 				LPC_DAC->DACR = 0;	  // 0 V
 			}
 			break;
