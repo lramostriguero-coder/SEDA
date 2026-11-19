@@ -1,0 +1,48 @@
+/*
+ * uart_.h
+ *
+ *  Created on: 1-Oct-2011
+ *  Author: J.M.V.C.
+ */
+
+#ifndef UART_H_
+#define UART_H_
+
+#include <stdint.h>
+// Accepted Error baud rate value (in percent unit)
+#define UART_ACCEPTED_BAUDRATE_ERROR    3
+
+#define CHAR_8_BIT                      (3 << 0)
+#define STOP_1_BIT                      (0 << 2)
+#define PARITY_NONE                     (0 << 3)
+#define DLAB_ENABLE                     (1 << 7)
+#define FIFO_ENABLE                     (1 << 0)
+#define RBR_IRQ_ENABLE                  (1 << 0)
+#define THRE_IRQ_ENABLE                 (1 << 1)
+#define UART_LSR_THRE   				        (1 << 5)
+#define RDA_INTERRUPT                   (2 << 1)
+#define CTI_INTERRUPT                   (6 << 1)
+
+#define TAM_TRAMA 36
+
+extern char buffer[100];	// Buffer de recepción
+extern char *ptr_rx;			// puntero de recepción
+extern char rx_completa;	// Flag de recepción de cadena completa que se activa al recibir CR(0x0D)
+extern char *ptr_tx;			// puntero de transmisión
+extern char tx_completa;	// Flag de transmisión de cadena completa
+
+extern void uart0_init(int baudrate);		// Configuracion UART0
+extern void tx_cadena_UART0(char *ptr); 
+
+extern uint8_t dato_rx3;								// Buffer de recepcion de trama del LIDAR (1 Byte)
+extern void uart3_init(int baudrate);		// Configruacion UART3
+
+extern uint8_t trama_lidar[TAM_TRAMA];	// Buffer de recepcion de tramas del LIDAR (36 Bytes)
+extern uint32_t tramas_ok;							// Flag de recepcion de tramas correcta
+extern uint32_t tramas_error;						// Flag de error en trama recibida
+
+extern void maquina_estados_lidar(uint8_t dato);	// Funcion maquina de estados: Rx tramas del LIDAR
+extern uint16_t Camsense_Checksum(uint8_t *data);	// Funcion de comprobacion de CRC en tramas recibidas
+
+
+#endif /* UART_H_ */
