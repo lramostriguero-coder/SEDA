@@ -1,0 +1,121 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Project:</h2>
+E:\SEDA\DAC_audio\DAC.uvproj
+Project File Date:  12/14/2017
+
+<h2>Output:</h2>
+Load "E:\\SEDA\\DAC_audio\\ADC_DAC.axf" 
+Set JLink Project File to "E:\SEDA\DAC_audio\JLinkSettings.ini"
+* JLink Info: Device "LPC1768" selected (512 KB flash, 32 KB RAM).
+ 
+JLink info:
+------------
+DLL: V4.68a, compiled Apr 12 2013 13:26:50
+Firmware: J-Link ARM-OB STM32 compiled Aug 22 2012 19:52:04
+Hardware: V7.00
+Feature(s) : RDI,FlashDL,FlashBP,JFlash,GDBFull 
+ 
+* JLink Info: TotalIRLen = ?, IRPrint = 0x..FFFFFFFFFFFFFFFFFFFFF000
+Load "E:\\SEDA\\DAC_audio\\ADC_DAC.axf" 
+Set JLink Project File to "E:\SEDA\DAC_audio\JLinkSettings.ini"
+* JLink Info: Device "LPC1768" selected (512 KB flash, 32 KB RAM).
+ 
+JLink info:
+------------
+DLL: V4.68a, compiled Apr 12 2013 13:26:50
+Firmware: J-Link ARM-OB STM32 compiled Aug 22 2012 19:52:04
+Hardware: V7.00
+Feature(s) : RDI,FlashDL,FlashBP,JFlash,GDBFull 
+ 
+* JLink Info: TotalIRLen = 4, IRPrint = 0x01
+* JLink Info: Found Cortex-M3 r2p0, Little endian.
+* JLink Info: TPIU fitted.
+* JLink Info: ETM fitted.
+* JLink Info: FPUnit: 6 code (BP) slots and 2 literal slots
+ROMTableAddr = 0xE00FF003
+* JLink Info: Found Cortex-M3 r2p0, Little endian.
+* JLink Info: TPIU fitted.
+* JLink Info: ETM fitted.
+* JLink Info: FPUnit: 6 code (BP) slots and 2 literal slots
+ 
+Target info:
+------------
+Device: LPC1768
+VTarget = 3.300V
+State of Pins: 
+TCK: 1, TDI: 0, TDO: 1, TMS: 0, TRES: 1, TRST: 1
+Hardware-Breakpoints: 6
+Software-Breakpoints: 8192
+Watchpoints:          4
+JTAG speed: 4000 kHz
+ 
+Erase Done.
+Programming Done.
+Verify OK.
+* JLink Info: Found Cortex-M3 r2p0, Little endian.
+* JLink Info: TPIU fitted.
+* JLink Info: ETM fitted.
+* JLink Info: FPUnit: 6 code (BP) slots and 2 literal slots
+Application running ...
+Build target 'Target 1'
+compiling main.c...
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+audio_muestras.h(1): warning:  #69-D: integer conversion resulted in truncation
+linking...
+Program Size: Code=1752 RO-data=16108 RW-data=8 ZI-data=608  
+FromELF: creating hex file...
+".\ADC_DAC.axf" - 0 Errors, 12 Warning(s).
+Load "E:\\SEDA\\DAC_audio\\ADC_DAC.axf" 
+Set JLink Project File to "E:\SEDA\DAC_audio\JLinkSettings.ini"
+* JLink Info: Device "LPC1768" selected (512 KB flash, 32 KB RAM).
+ 
+JLink info:
+------------
+DLL: V4.68a, compiled Apr 12 2013 13:26:50
+Firmware: J-Link ARM-OB STM32 compiled Aug 22 2012 19:52:04
+Hardware: V7.00
+Feature(s) : RDI,FlashDL,FlashBP,JFlash,GDBFull 
+ 
+* JLink Info: TotalIRLen = 4, IRPrint = 0x01
+* JLink Info: Found Cortex-M3 r2p0, Little endian.
+* JLink Info: TPIU fitted.
+* JLink Info: ETM fitted.
+* JLink Info: FPUnit: 6 code (BP) slots and 2 literal slots
+ROMTableAddr = 0xE00FF003
+* JLink Info: Found Cortex-M3 r2p0, Little endian.
+* JLink Info: TPIU fitted.
+* JLink Info: ETM fitted.
+* JLink Info: FPUnit: 6 code (BP) slots and 2 literal slots
+ 
+Target info:
+------------
+Device: LPC1768
+VTarget = 3.300V
+State of Pins: 
+TCK: 1, TDI: 0, TDO: 1, TMS: 0, TRES: 1, TRST: 1
+Hardware-Breakpoints: 6
+Software-Breakpoints: 8192
+Watchpoints:          4
+JTAG speed: 4000 kHz
+ 
+Erase Done.
+Programming Done.
+Verify OK.
+* JLink Info: Found Cortex-M3 r2p0, Little endian.
+* JLink Info: TPIU fitted.
+* JLink Info: ETM fitted.
+* JLink Info: FPUnit: 6 code (BP) slots and 2 literal slots
+Application running ...
