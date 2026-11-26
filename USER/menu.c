@@ -1,27 +1,49 @@
+/*
+Inclusion de la Práctica 6 en el proyecto.
+*/
 
-/* Includes ------------------------------------------------------------------*/
-#include "GLCD.h"
-#include "TouchPanel.h"
-#include <string.h>
-#include "leds.h"
-#include <Net_Config.h>
+#include <LPC17xx.H>
+#include <glcd.h>
+#include <TouchPanel.h>
 #include <stdio.h>
+#include <string.h>
+#include "uart.h"
+#include <math.h>
 
-/* Definición de los estados */
-#define SCREEN_WELCOME      0
-#define SCREEN_WELCOME_WAIT 1
-#define SCREEN_MAIN         2
-#define SCREEN_MAIN_WAIT    3
-#define SCREEN_TOGGLE       4
-#define SCREEN_TOGGLE_WAIT  5
+#define Fpclk 25e6	// Fcpu/4 (defecto después del reset)
+#define Fpwm 2e3		// Frecuencia de la señal PWM (brillo LCD)
+#define F_muestreo 50 	 // Fs=50Hz (Cada 20 ms se toma una muestra del canal 0 y 1)
 
-/* Variable que almacena el estado */
-uint8_t screenState;   
+#define T_pwm 15e-3	// Periodo de la PWM generada por TIMER 0 (servos)
+#define Tmin 0.5e-3	
+#define Tmax 2.6e-3	
+uint32_t cuentas_periodo = Fpclk * T_pwm;
+uint32_t cuentas[2];
+
+#define ZONAS 2			// Zona valida o no valida
+#define PI 3.14
+
+#define V_OSC 300 	// Medida con LDR a oscuras (mV)
+#define V_LUZ 3000 	// Medida con LDR con luz (mV)
+
+#define F_sample 8000 		// Frecuncia de muestreo de audio 8kHz
+#define N_muestras 16000 	// 2s de audio a 8kHz
+
+/* Estructura de zona inicial y zona final captadas por el LIDAR */
+struct t_zona
+{
+	uint16_t inicial;
+	uint16_t final;
+};
+
+/* Definicion de zona valida o invalida captadas por el LIDAR */
+struct t_zona zonas_validas[ZONAS] = {{45, 270}, {360, 45}};
+
 
 /* Estructura que define una zona de la pantalla */
 struct t_screenZone
 {
-   uint16_t x;         
+  uint16_t x;         
 	uint16_t y;
 	uint16_t size_x;
 	uint16_t size_y;
@@ -29,32 +51,548 @@ struct t_screenZone
 };
 
 /* Definicion de las diferentes zonas de la pantalla */
-struct t_screenZone zone_0 = { 20,  20, 200, 110, 0}; /* Botón "Enciende LEDs"   */
-struct t_screenZone zone_1 = { 20,  20, 200,  50, 0}; /* Botón "Apaga LEDs"      */
-struct t_screenZone zone_2 = { 20,  80, 200,  50, 0}; /* Botón "Conmuta LEDs"    */
-struct t_screenZone zone_3 = { 20, 140, 200,  50, 0}; /* Botón "Volver"          */
-struct t_screenZone zone_4 = { 40, 200,  60,  60, 0}; /* Botón  Led 1            */
-struct t_screenZone zone_5 = {140, 200,  60,  60, 0}; /* Botón  Led 2            */
-struct t_screenZone zone_6 = {20, 270,  200,  30, 0}; /* Messages                */
+/* Definicion de las diferentes zonas de la pantalla (Pantalla de 240 x 320 px) */
+struct t_screenZone zone_10 = { 20,   4, 200,  36, 0}; /* Botón Menú superior                 */
+
+struct t_screenZone zone_1  = { 20,  52, 200,  38, 0}; /* Visualizacion anguloLIDAR           */
+struct t_screenZone zone_4  = { 55,  94,  30,  30, 0}; /* Botón Aumentar 1                    */
+struct t_screenZone zone_5  = {155,  94,  30,  30, 0}; /* Botón Disminuir 1                   */
+
+struct t_screenZone zone_2  = { 20, 144, 200,  38, 0}; /* Visualizacion umbralDistancia       */
+struct t_screenZone zone_6  = { 55, 186,  30,  30, 0}; /* Botón Aumentar 2                    */
+struct t_screenZone zone_7  = {155, 186,  30,  30, 0}; /* Botón Disminuir 2                   */
+
+struct t_screenZone zone_3  = { 20, 236, 200,  38, 0}; /* Visualizacion brilloDisplay         */
+struct t_screenZone zone_8  = { 55, 278,  30,  30, 0}; /* Botón Aumentar 3                    */
+struct t_screenZone zone_9  = {155, 278,  30,  30, 0}; /* Botón Disminuir 3										*/
+
+/* Estados para grabación de audio */
+typedef enum audio 
+{
+	idle,
+	grabando,
+	reproduciendo
+} t_audio;
+
+volatile t_audio audio = idle;							// Estado inicial
+volatile uint8_t muestras_voz[N_muestras];	// Variable para almacenar audio
+volatile uint8_t fin_grabacion = 0;					// Semaforo
+
+/* Estados para comandos por Terminal */
+typedef enum 
+{
+	enviando_msj_inicial, 
+	msj_inicial_enviado,
+	enviando_mensaje_ordenes,
+	enviado_mensaje_ordenes, 
+	esperando_comando,
+	notificando_medida,
+	modificando_distancia,
+	notificando_comando_erroneo,
+	notificando_finalizacion, 
+	fin
+} t_estado;
+
+/* Estados para recepcion tramas LIDAR */
+typedef enum
+{
+	esperando_cab1,
+	esperando_cab2,
+	esperando_cab3,
+	esperando_cab4,
+	recibiendo_datos
+} t_estado_LIDAR;
+
+//================================================== AÑADIDO (P6) =============================================================================
+typedef enum
+{
+	menu,					// pantalla de menu
+	principal,		// pantalla principal 
+	LiDAR,				// dibujar entorno lidar
+	indicador,		// servos controlados por potenciometro o LiDAR
+} t_pantalla;
+
+t_pantalla pantalla = menu; // Pantalla inicial
+
+volatile uint32_t canal_0, canal_1; // Almacenar resultado del ADC
+volatile uint8_t nueva_muestra = 0;
+uint8_t modo_indicador = 0, brillo_auto = 1; 	// Flags usados en main()
+//================================================= FIN AÑADIDO (P6) ============================================================================
 
 /* Flag que indica si se detecta una pulsación válida */
 uint8_t pressedTouchPanel = 0;
 
-/* Variables que reflejan el estado de los LEDs */
-uint8_t led_1 = 0;
-uint8_t led_2 = 0;
+/* Variables que contiene el dato del programa */
+int angLIDAR = 0;						// (º)
+float umbDISTANCIA = 30;		// (cm)
+int brilloDISP = 20;				// (%)
 
-uint8_t flagUpdateLeds = 0;
+/* Variables donde almacenar cadenas de caracteres */
+char grado[25];
+char cm[25];
+char porcentaje[25];
 
-uint8_t messageText[25+1] = {"Esto es una prueba 1000"};
+/* Variables para comunicacion por Terminal (UART0) */
+char buffer[100];			// Buffer de recepción de 100 caracteres
+char buffer_tx[100];	// Buffer de recepción de 100 caracteres
+char *ptr_rx;					// puntero de recepción
+char rx_completa;			// Flag de recepción de cadena que se activa a "1" al recibir la tecla return CR(ASCII=13)
+char *ptr_tx;					// puntero de transmisión
+char tx_completa;			// Flag de transmisión de cadena que se activa al transmitir el caracter null (fin de cadena)
 
-void  screenMessageIP(void);
-void  screenMessage(void);
+t_estado estado; 	// Variable estado para comandos por Terminal
+
+/* Variables para Rx datos LIDAR (UART3) */
+uint8_t dato_rx3;									// Buffer de recepcion de trama del LIDAR (1 Byte)
+uint8_t trama_lidar[TAM_TRAMA];		// Buffer de recepcion de tramas del LIDAR (36 Bytes)
+uint32_t tramas_ok = 0;						// Flag de recepcion de tramas correcta
+uint32_t tramas_error = 0;				// Flag de error en trama recibida
+uint8_t indice_trama = 0;					// Numero de byte de la trama
+uint16_t lidar_scan_360[360];			// Array para almacenar medidas de distancia
+uint8_t deteccion = 0;					// '1' => objeto detectado,  '0'=> sin detección
+uint16_t distancia_minima;			// umbral de distancia de prueba
+int angulo_deteccion = 0;				// usada solo si deteccion = 1
+
+t_estado_LIDAR estado_lidar = esperando_cab1; // Estado incial Rx LIDAR
 
 
-extern LOCALM localm[];                       /* Local Machine Settings      */
-#define MY_IP localm[NETIF_ETH].IpAdr
+//================================================== AÑADIDO (P7) =============================================================================
+void init_ADC(void)
+{	
+	LPC_SC->PCONP|= (1<<12);                          // POwer ON
+	LPC_PINCON->PINSEL1|= ((1<<14)|(1<<16));          // (AD0.0 y AD0.1)  (P0.23 y P0.24)
+	LPC_PINCON->PINMODE1|= ((2<<14)|(2<<16));         // Deshabilita pullup/pulldown
+	LPC_SC->PCLKSEL0|= (0x00<<8);                     // CCLK/4 (Fpclk después del reset) (100 MHz/4 = 25MHz)
+	LPC_ADC->ADCR =(1<<0)|(1<<1)                			// canales 0,1
+											| (0x01<<8)                   // CLKDIV=1   (Fclk_ADC=25MHz /(1+1)= 12.5MHz)
+											| (0x01<<21);                 // PDN=1
+	// Ojo no se habilita el modo BURST en la inicialización  
+	LPC_ADC->ADINTEN=(1<<1);					// Hab. interrupción fin de conversión del ÚLTIMO canal(canal 1)
+	NVIC_EnableIRQ(ADC_IRQn);					// Hab. interrupción del ADC
+	NVIC_SetPriority(ADC_IRQn,1);	    // ISR del ADC prioridad 1
+}	
 
+void init_ADC_audio (void)
+{
+	LPC_PINCON->PINSEL3 |= (3U << 30);			// P1.31 => AD0.5
+	LPC_PINCON->PINMODE3 |= (2U << 30);		// P1.31 neither pull up/down
+	
+	LPC_ADC->ADCR = (1 << 5)|			// Selecciona AD0.5
+									(1 << 8)|			// CLKDIV = 1 -> Fclk_adc = 12.5MHz
+								  (1 << 21);			// PDN= 1
+	LPC_ADC->ADINTEN = (1 << 5);		// Interrumpe canal 5
+}
+
+/* Timer 1 interrumpe cada 1/Fs */
+void TIMER1_IRQHandler(void)
+{	
+	LPC_TIM1->IR = (1<<0);   	// Borrar flag interrupción								
+	if(audio !=  grabando && !fin_grabacion)
+		LPC_ADC->ADCR |= (1<<16); // BURST=1 --> Cada 65TclkADC se toma una muestra de cada canal comenzando 
+															//             desde el más bajo (bit LSB de CR[0..7])
+}
+
+
+// Con la interrupción del ÚLTIMO canal deshabilitamos la Ráfaga 
+// Ojo!!!! la conversión del siguiente canal (último) sigue en curso --> Ver Pag. 578 del manual
+void ADC_IRQHandler(void)
+{	
+	static uint16_t indice_grab;
+	
+	if(audio == grabando)			// P7: grbacion de voz
+	{
+		LPC_ADC-> ADCR &= ~(7 << 24);		// START = 000, Stop conversion
+		muestras_voz[indice_grab++] = ((LPC_ADC->ADDR5 >> 8)&0xFF);		// 8 bits de mayor peso
+		
+		if (indice_grab == N_muestras)
+		{
+			LPC_TIM2->TCR = 0x02; // Stop y reset timer
+			audio = idle;					
+			indice_grab = 0;
+			fin_grabacion = 1;		// Semaforo
+		}
+	}
+		else
+	{
+		LPC_ADC->ADCR&=~(1<<16); // BURST=0     // Deshabilitamos el modo Ráfaga 
+																						// (ojo continua la conversión del siguiente canal) 
+		//Almacenamos las muestras a modo de ejemplo
+		canal_0= ((LPC_ADC->ADDR0 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR0
+		canal_1= ((LPC_ADC->ADDR1 >>4)&0xFFF);	// flag DONE se borra automat. al leer ADDR1
+		nueva_muestra = 1;
+	}
+}
+
+void init_DAC(void)
+{
+	LPC_PINCON->PINSEL1|= (2<<20); 	 	// DAC output = P0.26 (AOUT)
+	LPC_PINCON->PINMODE1|= (2<<20); 	// Deshabilita pullup/pulldown
+	LPC_DAC->DACCTRL=0;								//  
+}
+
+void init_TIMER2(void)
+{
+	  LPC_SC->PCONP|=(1<<22);								// 	
+    LPC_TIM2->PR = 0x00;     	 						// 
+    LPC_TIM2->MCR = 0x03;									// Reset TC on Match, and Interrupt!  
+    LPC_TIM2->MR0 = (Fpclk/F_sample)-1;  // El timer 2 interrumpe cada 125 us 
+    LPC_TIM2->TCR = 0x02;									// Timer STOP y RESET
+	
+    NVIC_EnableIRQ(TIMER2_IRQn);					//
+	  NVIC_SetPriority(TIMER2_IRQn,0);  		// Prioridad Máxima     
+}
+
+// Timer 2 interrumpe periódicamente a F_sample = 8000 Hz !!!!
+// La muestra correpondiente del array,  se saca al DAC en cada interrupción
+void TIMER2_IRQHandler(void)
+{
+	static uint16_t indice_muestra;
+	LPC_TIM2->IR|= (1<<0); 								// Borrar flag
+	
+	switch(audio){
+		case idle:
+			break;
+		case grabando:
+			LPC_ADC->ADCR |= (1 << 24);	// START = 001, comienza la conversion
+			break;
+		case reproduciendo:
+			LPC_DAC->DACR= muestras_voz[indice_muestra++]<<8; // 8 bits!!!!
+			if(indice_muestra==N_muestras)
+			{
+				audio = idle;					// Reposo
+				indice_muestra = 0;
+				LPC_TIM2->TCR = 0x02;	//Stop Timer and reset, DAC= 0V.
+				LPC_DAC->DACR = 0;	  // 0 V
+			}
+			break;
+		default:
+			break;
+	}
+}	
+
+void init_Externas()
+{
+	// Configuración interrupciones externas
+	LPC_PINCON->PINSEL4 |= (0x01<<22); 		// P2.11 es entrada interrup. EXT 1 (pulsador KEY1 en MIni-DK2)
+	LPC_PINCON->PINSEL4 |= (0x01<<24); 		// P2.11 es entrada interrup. EXT 2 (pulsador KEY2 en MIni-DK2)
+	LPC_SC->EXTMODE |= (1<<1)|(1 << 2);  						// Por Flanco,	
+	LPC_SC->EXTPOLAR &= ~((1 << 1)|(1 << 2));				// de bajada
+		
+	NVIC_SetPriority(EINT1_IRQn, 1);		// Menor prioritaria!!! ;  sin CMSIS: NVIC->IP[22]=(4<<3); 
+	NVIC_SetPriority(EINT2_IRQn, 1);		// Menor prioritaria!!! ;  sin CMSIS: NVIC->IP[24]=(4<<3); 
+	NVIC_EnableIRQ(EINT1_IRQn); 				// sin CMSIS: NVIC->ISER[0]=(1<<28);
+	NVIC_EnableIRQ(EINT2_IRQn); 				// sin CMSIS: NVIC->ISER[0]=(1<<22);
+}
+
+/* Al pulsar KEY1 en Mini-DK2 se reproduce el audio */
+void EINT1_IRQHandler()
+{
+	LPC_SC->EXTINT=(1<<1); 	// Borrar flag Externa 1
+	if(audio  == idle)
+	{
+		audio = reproduciendo;	// Esatdoa evaluar en la ISR del TIMER 2
+		LPC_TIM2->TCR=0x01;		 	// Start Timer .
+	}
+}
+
+/* Al pulsar KEY2 en Mini-DK2 se muestrea el audio */
+void EINT2_IRQHandler()
+{
+	LPC_SC->EXTINT=(1<<2); // Borrar flag Externa 2
+	if(audio  == idle)
+	{
+		fin_grabacion= 0;
+		audio = grabando;	      // Esatdoa evaluar en la ISR del TIMER 2
+		init_ADC_audio();				// ADC para el microfono
+		LPC_TIM2->TCR=0x01;		 	// Start Timer .
+	}
+}
+
+/*Timer 1 en modo Output Compare (reset T1TC on Match 0)
+	Counter clk: 25 MHz
+  En cada Match interumpe, es decir con un periodo Ts= Fpclk/(MR1+1) y se habilita el modo Burst (Rafaga) 
+	para los canales 0 y 1 (muestreo valor de potenciometro y LDR).
+*/
+						
+void init_TIMER1(void)
+{
+	LPC_SC->PCONP|= (1<<2);                 	// TIMER1 power on
+	
+	LPC_TIM1->MCR = (3 << 0);              		// Interrupt on Match 0 and Reset TC
+	LPC_TIM1->MR0 = (Fpclk/F_muestreo) - 1;	  // Periodo de muestreo de TODAS las entradas!!!! 
+	LPC_TIM1->TCR = 0x01;                  		// TC1 on
+		
+	NVIC_EnableIRQ(TIMER1_IRQn);            	// Hab. interrupción del TIMER1
+	NVIC_SetPriority(TIMER1_IRQn,2);        	// ISR del TIMER1 con prioridad 2
+}	
+//================================================= FIN AÑADIDO (P6) ============================================================================
+
+/* Configuración TIMER0 para generar señal PWM por MAT0.0 y MAT0.1 (control de servos)*/
+void init_TIMER0(void)
+{
+	  LPC_SC->PCONP|=(1<<1);						// Power ON
+    LPC_TIM0->MCR = (1<<0)|(1<<3);  	// Interrup on MATCH 1 y MATCH 0 (Running TC) 
+    LPC_TIM0->MR0 = 20000; 						// Valor inicial cualquiera  
+    LPC_TIM0->MR1 = 10000; 						// Valor inicial cualquiera  
+		LPC_TIM0->EMR = 0xF0;   		 		  // Toggle on MATCH0.0 y MATCH0.1
+    LPC_TIM0->TCR = 0x01;     				// Start 
+}	
+/* Generacion de señal PWM para servos */
+void TIMER0_IRQHandler(void)
+{
+	if (LPC_TIM0->IR & (1<<0)) 		//MATCH 0?
+		{ 
+		LPC_TIM0->IR=(1<<0);				// Clear flag MR0	
+		if (LPC_TIM0->EMR & (1<<0))
+		{
+			LPC_TIM0->MR0 += cuentas[0];
+		} 
+		else
+		{
+			LPC_TIM0->MR0 += cuentas_periodo - cuentas[0];
+		}
+	}
+	if (LPC_TIM0->IR & (1<<1)) 		//MATCH 1?
+	{
+		LPC_TIM0->IR=(1<<1);				// Clear flag MR1
+		if (LPC_TIM0->EMR & (1<<1))
+		{
+			LPC_TIM0->MR1 += cuentas[1];
+		} 
+		else
+		{
+			LPC_TIM0->MR1 += cuentas_periodo - cuentas[1];
+		}
+	}
+}
+
+void delay_ms(int ms) {
+   int i,j;
+   for (j=0; j < ms; j++ )
+      for (i=0; i < 17000; i++);
+}
+
+/* Coloca el indicador (dos servos apilados) en una posición entre 0 y 360 grados */
+void set_indicador_360(uint16_t grados)
+{
+	uint16_t g0, g1;                    // Grados de cada servo (g0 = servo0, g1 = servo1)
+ 
+	if (grados <= 180){
+		g0 = grados;					// El servo 0 hace los primeros 180º
+		g1 = 0;
+	}
+	else {
+		g0 = 180;						// El servo 0 se queda al final
+		g1 = grados - 180;				// El servo 1 hace el resto
+	}
+ 
+	cuentas[0] = Fpclk*Tmin + Fpclk*(Tmax-Tmin)*g0/180;	// Servo 0
+	cuentas[1] = Fpclk*Tmin + Fpclk*(Tmax-Tmin)*g1/180;	// Servo 1
+}
+
+/* Funcion comprobacion zona valida */
+uint16_t zona_valida (int angulo){
+	int z;
+	
+	for ( z= 0; z < ZONAS; z++)
+	{
+	  if((angulo >= zonas_validas[z].inicial)&&(angulo <= zonas_validas[z].final))
+			return 1;	// Zona valida
+	}
+	
+	return 0;			// Zona no valida
+}
+
+/* Extraer las 8 muestras de una trama con CRC correcto y guardarla en lidar_scan_360 */
+void extraer_muestras(void)
+{
+	float ang_ini, ang_fin, inc_ang, ang_i;
+	uint16_t distancia;
+	int i, indice;
+	
+	// Angulo inicial (bytes 6-7) y final (bytes 32-33).
+	// Primero byte bajo, luego alto.
+	// Vienen multiplicadas por 64
+	ang_ini = ((trama_lidar[7] << 8) | trama_lidar[6])/64.0f;
+	ang_fin = ((trama_lidar[33] << 8) | trama_lidar[32])/64.0f;
+ 
+	if (ang_fin < ang_ini)								
+		ang_fin = ang_fin + 360;						// +360º en caso de angulo incremento negativo
+	
+	// Incremento de ángulo entre muestras
+	inc_ang = (ang_fin - ang_ini)/8;
+ 
+	// Ángulo y distancia de cada una de las 8 muestras
+	for (i = 0; i < 8; i++)
+	{
+		ang_i = (ang_ini + i * inc_ang);			// angulo en la muestra
+		indice = (int)(ang_i + 0.5f) % 360;		// round(ang_i) mod 360 : angulo de toma de medida
+		
+		// Distancia: byte 8+3*i (bajo) y 9+3*i (alto). Byte 10+3*i es la calidad
+		distancia = (trama_lidar[9 + 3*i] << 8) | trama_lidar[8 + 3*i];
+		
+		if (distancia & 0x8000)		// 0x8000: el LiDAR no ha medido nada en ese ángulo
+			distancia = 0;
+		
+		lidar_scan_360[indice] = distancia;		// distnacia en mm
+	}
+}
+ 
+	
+/* Maquina de estados: Rx LIDAR */
+void maquina_estados_lidar(uint8_t dato)
+{
+	switch(estado_lidar){
+	case esperando_cab1:
+		if (dato == 0x55)
+		{
+			trama_lidar[0] = dato;
+			estado_lidar = esperando_cab2;
+		}
+		break;
+
+	case esperando_cab2:
+		if (dato == 0xAA)
+		{
+			trama_lidar[1] = dato;
+			estado_lidar = esperando_cab3;
+		}
+		else
+			estado_lidar = esperando_cab1;	// Cabecera erronea, volver a empezar
+		break;
+
+	case esperando_cab3:
+		if (dato == 0x03)
+		{
+			trama_lidar[2] = dato;
+			estado_lidar = esperando_cab4;
+		}
+		else
+			estado_lidar = esperando_cab1; 	// Cabecera erronea, volver a empezar
+		break;
+
+	case esperando_cab4:								
+		if (dato == 0x08)
+		{
+			trama_lidar[3] = dato;
+			indice_trama = 4;								// Los datos empiezan en la posición 4
+			estado_lidar = recibiendo_datos;
+		}
+		else
+			estado_lidar = esperando_cab1;	// Cabecera erronea, volver a empezar
+		break;
+	
+	case recibiendo_datos:
+		trama_lidar[indice_trama++] = dato;
+		if (indice_trama == TAM_TRAMA)		// Trama completa (36 bytes)
+		{	// CRC recibido: byte 34 (parte baja) y byte 35 (parte alta)
+			if (Camsense_Checksum(trama_lidar) == (trama_lidar[34] | (trama_lidar[35] << 8))) // Comprobar CRC
+			{
+				tramas_ok++;
+				extraer_muestras();						// Extraer las 8 muestras de la trama
+			}
+			else
+				tramas_error++;
+			
+			estado_lidar = esperando_cab1;	// Siguiente trama
+		}
+		break;
+		
+	default:
+		break;
+	}
+	
+}	
+	
+/* Maquina de estados: comandos por Terminal */
+void maquina_de_estados (void){
+	
+		 switch(estado){
+		 case enviando_msj_inicial:
+				if (tx_completa)
+					estado = msj_inicial_enviado;
+				break;
+				
+		 case msj_inicial_enviado:
+				tx_cadena_UART0("Introduce un comando apaga, enciende, GetMedida, SetUmbralDistancia o fin.\n");
+				estado = enviando_mensaje_ordenes;
+				break;
+		 
+		 case enviando_mensaje_ordenes:
+				if (tx_completa)
+					estado = enviado_mensaje_ordenes;
+				break;
+				
+		 case enviado_mensaje_ordenes:
+				estado = esperando_comando;
+				break;
+		 
+		 case esperando_comando:
+				if(rx_completa)
+				{
+					rx_completa = 0;
+					if (strcmp(buffer, "enciende\r") == 0)
+						LPC_GPIO3->FIOPIN&=~(1<<26);					 	// Led P3.26 encendido
+          else if (strcmp (buffer, "apaga\r") == 0)  
+						LPC_GPIO3->FIOPIN|=(1<<26);							// Led P3.26 apagado
+					
+					else if ((strcmp(buffer, "GetMedida\r")) == 0)
+					{
+						// Guardar en buffer Tx el valor de las variables						
+						sprintf(buffer_tx, "Angulo: %d grados, Umbral de Distancia: %.1f cm, Brillo: %d %%", angLIDAR, umbDISTANCIA, brilloDISP);
+						tx_cadena_UART0(buffer_tx);																							// Transmitir buffer
+						estado = notificando_medida;
+					}
+					else if (sscanf(buffer, "SetUmbralDistancia %f", &umbDISTANCIA) == 1)
+					{		// Esperar a introducir valor Distancia y guardar en umbralDistancia
+						sprintf(buffer_tx, "Umbral de distancia = %.1f cm\n\r", umbDISTANCIA);	// Guardar valor de umbralDistancia en buffer de Tx
+						tx_cadena_UART0(buffer_tx);																							// Transmitir buffer
+						estado = notificando_medida;
+					}
+          else if (strcmp (buffer, "fin\r") == 0)
+					{		
+						tx_cadena_UART0("Fin del programa.\r");
+						estado = notificando_finalizacion;
+					}
+          else
+					{
+						tx_cadena_UART0("Comando erroneo\n\r");
+						estado = notificando_comando_erroneo;
+					} 
+				}
+				break;
+			
+		 case notificando_medida:
+			 if (tx_completa)
+				 estado = esperando_comando;
+			 break;
+			 
+		 case notificando_comando_erroneo:
+				if (tx_completa)
+					estado= esperando_comando;
+				break;
+				
+		 case notificando_finalizacion:
+			 if (tx_completa)
+				 estado= fin;
+			 break;
+			 
+		 case fin:
+			 
+		 default:
+			 break;
+	 }
+}
+
+/* Funcion de configuracion PWM1 (brillo LCD) */
+void configPWM(void) {
+   LPC_PINCON->PINSEL3|=(2<<20); 	// P1.26 salida PWM (PWM1.6) 
+   LPC_SC->PCONP|=(1<<6);
+   LPC_PWM1->MR0= Fpclk/Fpwm-1; 
+   LPC_PWM1->PCR|=(1<<14); 				// Configurado el ENA6 (P1.26)
+   LPC_PWM1->MCR|=(1<<1);
+   LPC_PWM1->TCR|=(1<<0)|(1<<3);
+}
 
 /*******************************************************************************
 * Function Name  : squareButton
@@ -74,23 +612,56 @@ void squareButton(struct t_screenZone* zone, char * text, uint16_t textColor, ui
    LCD_DrawLine( zone->x, zone->y, zone->x, zone->y + zone->size_y, lineColor);
    LCD_DrawLine( zone->x, zone->y + zone->size_y, zone->x + zone->size_x, zone->y + zone->size_y, lineColor);
    LCD_DrawLine( zone->x + zone->size_x, zone->y, zone->x + zone->size_x, zone->y + zone->size_y, lineColor);
-	GUI_Text(zone->x + zone->size_x/2 - (strlen(text)/2)*8, zone->y + zone->size_y/2 - 8,
+	 GUI_Text(zone->x + zone->size_x/2 - (strlen(text)/2)*8, zone->y + zone->size_y/2 - 8,
             (uint8_t*) text, textColor, Black);	
 }
 
 /*******************************************************************************
-* Function Name  : screenWelcome
-* Description    : Visualiza la pantalla de bienveida
-* Input          : None
+* Function Name  : drawMinus
+* Description    : Draw a minus sign in the center of the zone
+* Input          : zone: zone struct
+*                  lineColor
 * Output         : None
 * Return         : None
 * Attention		  : None
 *******************************************************************************/
-void screenWelcome(void)
+void drawMinus(struct t_screenZone* zone, uint16_t lineColor)
 {
-		squareButton(&zone_0, "Ejemplo de los LEDS", White, Red);
-      screenMessageIP();
+   LCD_DrawLine( zone->x + 5 , zone->y + zone->size_y/2 - 1, 
+                 zone->x + zone->size_x-5, zone->y + zone->size_y/2 - 1,
+                 lineColor);
+   LCD_DrawLine( zone->x + 5 , zone->y + zone->size_y/2, 
+                 zone->x + zone->size_x-5, zone->y + zone->size_y/2,
+                 lineColor);
+   LCD_DrawLine( zone->x + 5 , zone->y + zone->size_y/2 + 1, 
+                 zone->x + zone->size_x-5, zone->y + zone->size_y/2 + 1,
+                 lineColor);
 }
+
+/*******************************************************************************
+* Function Name  : drawMinus
+* Description    : Draw a minus sign in the center of the zone
+* Input          : zone: zone struct
+*                  lineColor
+* Output         : None
+* Return         : None
+* Attention		  : None
+*******************************************************************************/
+void drawAdd(struct t_screenZone* zone, uint16_t lineColor)
+{
+   drawMinus(zone, lineColor);
+   
+   LCD_DrawLine( zone->x + zone->size_x/2 - 1,  zone->y + 5 ,
+                 zone->x + zone->size_x/2 - 1,  zone->y + zone->size_y - 5, 
+                 lineColor);
+   LCD_DrawLine( zone->x + zone->size_x/2 ,  zone->y + 5 ,
+                 zone->x + zone->size_x/2 ,  zone->y + zone->size_y - 5, 
+                 lineColor);
+   LCD_DrawLine( zone->x + zone->size_x/2 + 1,  zone->y + 5 ,
+                 zone->x + zone->size_x/2 + 1,  zone->y + zone->size_y - 5, 
+                 lineColor);
+}
+
 
 /*******************************************************************************
 * Function Name  : screenMain
@@ -101,60 +672,19 @@ void screenWelcome(void)
 * Attention		  : None
 *******************************************************************************/
 void screenMain(void)
-{
-   squareButton(&zone_1, "Enciende LEDs", White, Blue);
-   squareButton(&zone_2, "Apaga LEDs", White, Blue);
-   squareButton(&zone_3, "Conmuta LEDs", White, Blue);
-
-  	squareButton(&zone_4, " ", White, Blue);
-   squareButton(&zone_5, " ", White, Blue);
-   screenMessage();
+{	
+	 squareButton(&zone_10,"          MENU          ", White, Blue);	
+	 squareButton(&zone_1, "Lidar:         grados   ", White, Blue);
+	 squareButton(&zone_2, "Distancia:          cm  ", White, Blue);
+	 squareButton(&zone_3, "Brillo:             %   ", White, Blue);
+	 drawMinus(&zone_5, Yellow);
+	 drawMinus(&zone_7, Yellow);
+	 drawMinus(&zone_9, Yellow);
+   drawAdd(&zone_4, Yellow);
+   drawAdd(&zone_6, Yellow);
+   drawAdd(&zone_8, Yellow);
 }
 
-/*******************************************************************************
-* Function Name  : screenToggle
-* Description    : Visualiza la pantalla secundaria
-* Input          : None
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void screenToggle()
-{
-   squareButton(&zone_0, "Pulsa en el LED", White, Blue);
-	squareButton(&zone_3, "Volver", White, Blue);
-
-  	squareButton(&zone_4, " ", White, Blue);
-	squareButton(&zone_5, " ", White, Blue);
-   screenMessage();
-}
-
-/*******************************************************************************
-* Function Name  : screenMessage
-* Description    : Visualiza la pantalla de mensajes
-* Input          : None
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void screenMessage(void)
-{
-   squareButton(&zone_6, (char*)messageText, Red, White);
-}
-/*******************************************************************************
-* Function Name  : screenMessageIP
-* Description    : Visualiza la pantalla de mensajes
-* Input          : None
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void screenMessageIP(void)
-{     
-   sprintf((char *)messageText,"   IP: %d.%d.%d.%d  ", MY_IP[0], MY_IP[1],
-                                                       MY_IP[2], MY_IP[3]);
-   squareButton(&zone_6, (char*)messageText, Red, White);
-}
 /*******************************************************************************
 * Function Name  : checkTouchPanel
 * Description    : Lee el TouchPanel y almacena las coordenadas si detecta pulsación
@@ -177,7 +707,23 @@ void checkTouchPanel(void)
      pressedTouchPanel = 1;
    }   
    else
+   {   
      pressedTouchPanel = 0;
+      
+     // Esto es necesario hacerlo si hay dos zonas diferentes en 
+     // dos pantallas secuenciales que se solapen      
+     zone_1.pressed = 1;
+     zone_2.pressed = 1;
+     zone_3.pressed = 1;
+     zone_4.pressed = 1;
+     zone_5.pressed = 1;
+		 zone_6.pressed = 1;
+		 zone_7.pressed = 1;
+		 zone_8.pressed = 1;
+		 zone_9.pressed = 1;
+		 zone_10.pressed = 1;
+     
+   }  
 }
 
 /*******************************************************************************
@@ -239,152 +785,418 @@ int8_t zoneNewPressed(struct t_screenZone* zone)
 	return 0;
 }
 
-
-/*******************************************************************************
-* Function Name  : fillRect
-* Description    : Rellena de un color determinado el interior de una zona 
-* Input          : zone: Estructura con la información de la zona
-*                  color: color de relleno
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void fillRect(struct t_screenZone* zone, uint16_t color)
+/* Ajuste de brillo de display LCD (PWM1) */
+void setBrillo(float brilloDISP) 
 {
-	uint16_t i;
+   LPC_PWM1->MR6= LPC_PWM1->MR0*brilloDISP/100; // P1.26
+   LPC_PWM1->LER|=(1<<6)|(1<<0);
+}
+
+// ======================================================== AÑADIDO (P6) ================================================================================
+void analizar_LiDAR(uint8_t dibujar)
+{	
+	int i;													// variable de bucle para recorrer lidar_scan_360
+	uint16_t color;
 	
-	for (i = zone->y+1; i < zone->y + zone->size_y-1; i ++) {
-		LCD_DrawLine(zone->x + 1, i, zone->x + zone->size_x -1, i, color);
+	deteccion = 0;
+	distancia_minima = 0xFFFF;
+	for (i=0; i < 360; i++) 									// Recorrer datos de LiDAR
+	{
+		if(!zona_valida(i))
+			color = Blue;				// Ignorar zona no valida
+		else if (lidar_scan_360[i] != 0 && lidar_scan_360[i] < umbDISTANCIA*10)
+		{
+			color  = Red;				// Objeto cercano detectado
+			deteccion = 1;
+			if (lidar_scan_360[i] < distancia_minima)
+			{
+				distancia_minima = lidar_scan_360[i];		// Actualizar objeto más cercano detectado
+				angulo_deteccion = i;										// Angulo de detección
+			}
+		}
+		else 
+			color = White;
+		if(dibujar)
+			LCD_SetPoint(120 + (int)((lidar_scan_360[i] / 20.0f) * sin(i * PI / 180)),			// Mostrar por display el
+									 160 + (int)((lidar_scan_360[i] / 20.0f) * cos(i * PI / 180)), 			// entorno captado por LiDAR
+									 color); 
 	}
 }
 
-
-/*******************************************************************************
-* Function Name  : updateLEDs
-* Description    : Actualiza en función de las variables led1 y led2 la visualización 
-*                  de los LEDs de la Mini-DK2 y el color de los cuadros en pantalla
-*                  relacionados. 
-* Input          : zone: Estructura con la información de la zona
-*                  color: color de relleno
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void updateLEDs(void)
+void pintar_LCD(t_pantalla nueva_pantalla)
 {
-	if (led_1 ==1) {
-		fillRect(&zone_4,Red);
-		LED1_ON;
-  }
-	else {
-		fillRect(&zone_4,Blue);
-		LED1_OFF;
-  }
-	if (led_2 ==1) {
-		fillRect(&zone_5,Red);
-		LED2_ON;
-  }
-	else {
-		fillRect(&zone_5,Blue);
-		LED2_OFF;
-  }
-}
-
-/*******************************************************************************
-* Function Name  : initScreenStateMachine
-* Description    : Inicializa la máquina de estados al primer estado. 
-* Input          : None
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void 	initScreenStateMachine(void)
-{
-	screenState = SCREEN_WELCOME;
-}
-
-
-/*******************************************************************************
-* Function Name  : screenStateMachine
-* Description    : Máquina de estados de la aplicación. 
-* Input          : None
-* Output         : None
-* Return         : None
-* Attention		  : None
-*******************************************************************************/
-void screenStateMachine(void)
-{ 
-	/* Lee posible pulsación del TouchPanel  */
-   checkTouchPanel();
-
-	switch (screenState)
+	pantalla = nueva_pantalla;
+	LCD_Clear(Black);
+	
+	switch(pantalla)
 	{
-      case SCREEN_WELCOME:
-         LCD_Clear(Black);
-			screenWelcome();
-			screenState = SCREEN_WELCOME_WAIT;
+		case menu:
+			squareButton(&zone_10,"         MENU          ", White, Blue);
+			squareButton(&zone_1, "Pantalla principal     ", White, Blue);
+			squareButton(&zone_2, "Visulizacion de LiDAR  ", White, Blue);
+			squareButton(&zone_3, "Modo indicador         ", White, Blue);
 			break;
-			 
-		case SCREEN_WELCOME_WAIT:
-         if (zonePressed(&zone_0)) {
-			   screenState = SCREEN_MAIN;
-			}					
-			break;
-			 
-		case SCREEN_MAIN:
-			LCD_Clear(Black);
+		
+		case principal:
 			screenMain();
-         flagUpdateLeds=1;					
-			screenState = SCREEN_MAIN_WAIT;
 			break;
-			 
-		case SCREEN_MAIN_WAIT:
-			if (zonePressed(&zone_1)) {
-			   led_1 = 1;
-				led_2 = 1;
-	         flagUpdateLeds=1;					
-			}					
-			if (zonePressed(&zone_2)) {
-				led_1 = 0;
-				led_2 = 0;
-	         flagUpdateLeds=1;					
-			}					
+		
+		case LiDAR:
+			squareButton(&zone_10,"         MENU          ", White, Blue);
+			break;
+			
+		case indicador:
+			squareButton(&zone_10,"          MENU         ", White, Blue);
+			squareButton(&zone_1, "Indicador potenciometro", White, Blue);
+			squareButton(&zone_2, "Indicador de LiDAR     ", White, Blue);
+			break;
+		default:
+			break;
+	
+	}
+}
 
-			if (zoneNewPressed(&zone_3)) {
-				screenState = SCREEN_TOGGLE;
-			}
-		   break;
-					
-		case SCREEN_TOGGLE:
-			LCD_Clear(Black);
-			screenToggle();
-         flagUpdateLeds=1;					
-			screenState = SCREEN_TOGGLE_WAIT;
+//================================================== AÑADIDO (P8) =============================================================================
+
+/* Inicializacion de todos los perifericos de las practicas 1-7 (antes al principio de main) */
+
+void init_app(void)
+
+{
+
+	configPWM();
+
+	LCD_Initializtion();
+
+	LCD_Clear(Black);		
+
+	TP_Init(); 
+
+	//TouchPanel_Calibrate(); /* Configurar "matrix" y comentar para eliminar la calibración */
+
+	pintar_LCD(menu);
+
+	/* UART0 y 3 (Comandos por Terminal y Rx datos LIDAR) */
+
+	ptr_rx=buffer;	    		  // Inicializa el puntero de recepción al comienzo del buffer
+
+	uart0_init(115200); 		 	// Configura la UART0 a 115200 baudios, 8 bits, 1 bit stop
+
+	uart3_init(115200);				// Configura la UART3 a 115200 baudios, 8 bits, 1 bit stop
+
+	LPC_PINCON->PINSEL7|=(2<<18); // P3.25 es MAT0.0	
+
+	LPC_PINCON->PINSEL7|=(2<<20); // P3.26 es MAT0.1	
+
+	cuentas[0]= Fpclk*Tmin;			// Posicion de reposo servo 0
+
+	cuentas[1]= Fpclk*Tmin;			// Posicion de reposo servo 1
+
+	set_indicador_360(0);
+
+	init_TIMER0();
+
+	NVIC_EnableIRQ(TIMER0_IRQn);
+ 
+	tx_cadena_UART0("Esto es una prueba de la UART0 del LPC1768 a 115200 baudios\n\r");
+
+	estado = enviando_msj_inicial;
+
+	// AÑADIDO P6
+
+	NVIC_SetPriorityGrouping(2);
+
+	init_ADC();
+
+	init_TIMER1();
+
+	// AÑADIDO P7
+
+	init_DAC();
+
+	init_TIMER2();
+
+	init_Externas();
+
+}
+ 
+/* Una vuelta del bucle de las practicas 1-7 (antes el while(1) de main).
+
+   Se llama continuamente desde main.c, alternando con main_TcpNet(). */
+
+void app_loop(void)
+
+{
+
+	char texto[40];									// Notifica por pantalla si hay deteccion.
+
+	uint16_t V_pot, grados_pot, luz, p;	// Lectura de tension en el potenciómetro y en el LDR
+ 
+	if(fin_grabacion){		// Semaforo: ha terminado la grabacion
+
+		init_ADC();					// Volver a configurar el ADC para potenciometro
+
+		fin_grabacion=0;
+
+	}
+
+	maquina_de_estados();
+
+	checkTouchPanel();
+
+	setBrillo(brilloDISP);
+
+	if (brillo_auto)	
+
+	{
+
+		luz = (uint32_t)(canal_1 * 3300/4095); 	 // LDR en mV
+
+		if (luz < V_OSC)
+
+			p = 20;
+
+		else
+
+		{
+
+			p = (uint32_t)((luz - V_OSC) * 100 / (V_LUZ - V_OSC));	// Porcentaje de luminosidad en funcion de Luz
+
+			if (p < 20)  p = 20;
+
+			if (p > 100) p = 100;
+
+		}
+
+		brilloDISP = p;
+
+	}
+
+	switch(pantalla)
+
+	{
+
+		case menu: 			/* Pantalla de Menú	*/
+
+			if (zoneNewPressed(&zone_1))	pintar_LCD(principal);
+
+			if (zoneNewPressed(&zone_2)) 	pintar_LCD(LiDAR);
+
+			if (zoneNewPressed(&zone_3)) 	pintar_LCD(indicador);
+
+			if (zoneNewPressed(&zone_10)) pintar_LCD(menu);
+
 			break;
-			 
-		case SCREEN_TOGGLE_WAIT:
-			if (zoneNewPressed(&zone_3)) {
-			   screenState = SCREEN_MAIN;
+
+		case principal: /* Pantalla principal */
+
+			if (zoneNewPressed(&zone_10)) {	
+
+				pintar_LCD(menu); // Cambio de pantalla
+
+				break;						// Salir del case
+
 			}
-			if (zoneNewPressed(&zone_4)) {
-				led_1 ^= 0x01;
-	         flagUpdateLeds=1;					
+
+			if (zonePressed(&zone_1)){
+
+					angLIDAR = 0;}
+
+			if (zonePressed(&zone_2)){
+
+					umbDISTANCIA = 0;}
+
+			if (zoneNewPressed(&zone_3)){
+
+					brilloDISP = 20;
+
+					brillo_auto = !brillo_auto;}
+
+			if (!brillo_auto)
+
+			{
+
+				if (zonePressed(&zone_8)){
+
+					(brilloDISP < 100) ? brilloDISP = brilloDISP + 1 : brilloDISP;
+
+				}
+
+				if (zonePressed(&zone_9)){
+
+					if(brilloDISP == 20) {
+
+							brilloDISP = 20;} 
+
+					else { 
+
+							brilloDISP = brilloDISP - 1;}
+
+				}
+
 			}
-			if (zoneNewPressed(&zone_5)) {
-				led_2 ^= 0x01;
-	         flagUpdateLeds=1;					
+
+			if (zoneNewPressed(&zone_4)){
+
+					(angLIDAR == 360) ? angLIDAR = 360 : angLIDAR ++; 
+
 			}
+
+			if (zoneNewPressed(&zone_5)){
+
+					(angLIDAR == 0) ? angLIDAR = 0 : angLIDAR --; 
+
+			}
+
+			if (zoneNewPressed(&zone_6)){
+
+					umbDISTANCIA = umbDISTANCIA + 0.1;
+
+			}
+
+			if (zoneNewPressed(&zone_7)){
+
+				if (umbDISTANCIA <= 0.1) {
+
+						umbDISTANCIA = 0;}
+
+				else {
+
+						umbDISTANCIA = umbDISTANCIA - 0.1;}
+
+			}
+
+			sprintf(grado, "%4d", angLIDAR);
+
+			sprintf(cm,"%5.1f", umbDISTANCIA);
+
+			sprintf(porcentaje, "%3d", brilloDISP);
+
+			GUI_Text(zone_1.x + zone_1.size_x/2 - (strlen(grado)/2)*8, zone_1.y + zone_1.size_y/2 - 8,
+
+							(uint8_t*) grado, White, Black);	
+
+			GUI_Text(zone_2.x + zone_2.size_x/2 - (strlen(cm)/2)*8, zone_2.y + zone_2.size_y/2 - 8,
+
+							(uint8_t*) cm, White, Black);	
+
+			GUI_Text(zone_3.x + zone_3.size_x/2 - (strlen(porcentaje)/2)*8, zone_3.y + zone_3.size_y/2 - 8,
+
+							(uint8_t*) porcentaje, White, Black);
+
+			break;
+
+		case LiDAR: 	/* Visualización de LiDAR*/
+
+			if (zoneNewPressed(&zone_10)){
+
+				pintar_LCD(menu); // Cambio de pantalla
+
+				break;						// Salir del case
+
+			}
+
+			pintar_LCD(LiDAR); 	// Limpia pantalla y dibuja cuadro de MENU
+
+			analizar_LiDAR(1);	// Recorre scan_lidar_360, detecta objeto mas cercano y pinta puntos en el LCD
+
+			if(deteccion)
+
+			{
+
+				set_indicador_360(angulo_deteccion);			// Apuntar al objeto
+
+				sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
+
+				GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+
+			}
+
+			else
+
+			{
+
+				set_indicador_360(0);											// En reposo
+
+				GUI_Text(0, 300, (uint8_t *)"Sin deteccion.           ", White, Black);
+
+			}
+
+			break;
+
+		case indicador: /* Elección de modo de indicador */
+
+			if (zoneNewPressed(&zone_10)) pintar_LCD(menu); // Cambio de pantalla
+
+			if (zoneNewPressed(&zone_1)){
+
+				modo_indicador = 0;		// Modo indicador por potenciometro
+
+				GUI_Text(0, 300, (uint8_t *)"                          ", White, Black);
+
+			}
+
+			if (zoneNewPressed(&zone_2))	modo_indicador = 1; 	// Modo indicador detección LiDAR
+ 
+			if (!modo_indicador)		// Modo indicador por potenciometro
+
+			{
+
+				if (nueva_muestra)
+
+				{
+
+					nueva_muestra = 0;			// Borrar flag de muestra
+
+					V_pot = (uint32_t)(canal_0 * 3300/4095);			// Conversion del valor digital leido a mV
+
+					grados_pot =	(uint32_t)((V_pot * 360)/3300);	// Conversion de mV a grados
+
+					set_indicador_360(grados_pot);
+
+				}
+
+			}
+
+			else 					// Modo indicador detección LiDAR
+
+			{
+
+				analizar_LiDAR(0);	// Deteccion de objetos sin pintar LiDAR en LCD
+
+				if(deteccion)
+
+				{
+
+					set_indicador_360(angulo_deteccion);			// Apuntar al objeto
+
+					sprintf(texto, "Objeto: %3d grados %4d mm", angulo_deteccion, distancia_minima);
+
+					GUI_Text(0, 300, (uint8_t *)texto, Red, Black);
+
+				}
+
+				else
+
+				{
+
+					set_indicador_360(0);											// En reposo
+
+					GUI_Text(0, 300, (uint8_t *)"Sin deteccion.            ", White, Black);
+
+				}
+
+			}
+
 			break;
 
 		default:
+
 			break;
+
 	}
-   if (flagUpdateLeds) {
-      flagUpdateLeds=0;
-      updateLEDs();
-   }
+
 }
 
-/*********************************************************************************************************
-      END FILE
-*********************************************************************************************************/
+//================================================= FIN AÑADIDO (P8) ============================================================================
+ 

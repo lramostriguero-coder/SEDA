@@ -45,25 +45,16 @@ extern   U32 CheckMedia (void);
 * Attention		  : None
 *******************************************************************************/
 static void init () {
-   
-  LCD_Initializtion();	
-   
-  /*  Serial init for debug. Need enviroment constant __UART0, __UART1 o __DBG_ITM  */
+  /* P8: LCD_Initializtion() y TP_Init() se hacen ahora en init_app() (menu.c) */
   SER_Init ();
-   
   init_TcpNet ();
-   
-  /* Setup and enable the SysTick timer for 100ms. */
   SysTick->LOAD = (SystemCoreClock / 10) - 1;
   SysTick->CTRL = 0x05;
-  
-  /* TouchPanel Init  */   
-  TP_Init(); 
-  TouchPanel_Calibrate(); /* Uncomment for TouchPanel calibration */
-
-  configLEDs();
-
+  /* P8: inicializacion de las practicas 1-7 (LCD, TouchPanel, UARTs, timers, ADC, DAC...) */
+  init_app();
+  /* P8: configLEDs() eliminado. P3.25 y P3.26 son ahora MAT0.0/MAT0.1 (servos) */
 }
+ 
 
 
 
@@ -98,13 +89,11 @@ static void timer_poll () {
 int main(void)
 { 
 	init ();
-	
-	initScreenStateMachine();
 	while (1)	
 	{
-		screenStateMachine();
-      timer_poll ();
-      main_TcpNet ();
+		app_loop ();      /* P8: una vuelta del programa de las practicas 1-7 */
+    timer_poll ();
+    main_TcpNet ();
 	}
 }
 

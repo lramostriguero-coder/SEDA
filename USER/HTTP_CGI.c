@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 extern uint8_t flagUpdateLeds;
 /* ---------------------------------------------------------------------------
@@ -34,6 +35,11 @@ extern uint8_t flagUpdateLeds;
 
 extern uint8_t led_1;
 extern uint8_t led_2;
+
+extern uint16_t alarma;
+extern uint16_t angulo;
+extern uint16_t modo;
+extern uint16_t umbral;
 
 /* http_demo.c */
 extern U16 AD_in (U32 ch);
@@ -91,6 +97,12 @@ void cgi_process_var (U8 *qs) {
   /*.The Querry_String.is SPACE terminated.                                */
   U8 *var;
   uint8_t leds=0;
+	
+	if(str_scomp (qs,"umbral=")== __TRUE){
+		umbral=atoi((char*)&qs[7]);
+	  return;
+	}
+	
   var = (U8 *)alloc_mem (40);
   led_1 = 0;
   led_2 = 0;
@@ -184,27 +196,32 @@ U16 cgi_func (U8 *env, U8 *buf, U16 buflen, U32 *pcgi) {
   switch (env[0]) {
     /* Analyze the environment string. It is the script 'c' line starting */
     /* at position 2. What you write to the script file is returned here. */
-    case 'a' :
+    case 'b' :
       switch (env[2]) {
         case '1':
           /* Write the local IP address. The format string is included */
           /* in environment string of the script line.                 */
-          len = sprintf((char *)buf,(const char *)&env[4],led_1 ? "checked" : "");
+          len = sprintf((char *)buf,(const char *)&env[4],angulo);
           break;
         case '2':
           /* Write local Net mask. */
-          len = sprintf((char *)buf,(const char *)&env[4],led_2 ? "checked" : "");
+          len = sprintf((char *)buf,(const char *)&env[4],modo ? "Modo Configuraci&oacute;n" : "Modo Normal");
           break;
         case '3':
           /* Write the local IP address. The format string is included */
           /* in environment string of the script line.                 */
-          len = sprintf((char *)buf,(const char *)&env[4],led_1 ? "red" : "blue");
+          len = sprintf((char *)buf,(const char *)&env[4],alarma ? "Activada" : "Desactivada");
           break;
         case '4':
           /* Write local Net mask. */
-          len = sprintf((char *)buf,(const char *)&env[4],led_2 ? "red" : "blue");
+          len = sprintf((char *)buf,(const char *)&env[4],umbral);
+          break;
+				case '5':
+          /* Ocultar el bloque del umbral si no estamos en Modo Configuracion */
+          len = sprintf((char *)buf,(const char *)&env[4],modo ? "" : "hidden");
           break;
         default:
+		
            break;
       }
       break;
